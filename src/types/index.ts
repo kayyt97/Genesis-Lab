@@ -1,0 +1,216 @@
+/** Core data models for Genesis Lab */
+
+export type DataSourceType =
+  | 'simulation'
+  | 'educational'
+  | 'hypothesis'
+  | 'user-entered'
+  | 'validated-evidence';
+
+export interface DataSourceMeta {
+  sourceType: DataSourceType;
+  label: string;
+  disclaimer?: string;
+}
+
+export type SampleType =
+  | 'bacterial-culture'
+  | 'cell-culture'
+  | 'tissue'
+  | 'environmental'
+  | 'protein'
+  | 'dna'
+  | 'rna';
+
+export type SampleStatus = 'active' | 'stored' | 'depleted' | 'archived';
+
+export interface Sample {
+  id: string;
+  name: string;
+  sampleType: SampleType;
+  source: string;
+  dateCreated: string;
+  storageCondition: string;
+  status: SampleStatus;
+  associatedExperimentIds: string[];
+  notes: string;
+}
+
+export type OrganismCategory =
+  | 'bacteria'
+  | 'viruses'
+  | 'fungi'
+  | 'mammalian-cells'
+  | 'plant-cells'
+  | 'proteins'
+  | 'prions';
+
+export interface BiologicalEntity {
+  id: string;
+  commonName: string;
+  scientificName: string;
+  category: OrganismCategory;
+  classification: string;
+  description: string;
+  characteristics: string[];
+  preferredEnvironment: Partial<EnvironmentConditions>;
+  associatedExperimentIds: string[];
+  references: string[];
+}
+
+export interface Compound {
+  id: string;
+  name: string;
+  formula: string;
+  molecularMass: number;
+  massUnit: string;
+  category: string;
+  description: string;
+  knownInteractions: string[];
+  experimentalNotes: string;
+  references: string[];
+}
+
+export interface EnvironmentConditions {
+  temperature: number; // °C
+  ph: number;
+  oxygen: number; // %
+  carbonDioxide: number; // %
+  humidity: number; // %
+  pressure: number; // kPa
+  salinity: number; // ppt
+  nutrientAvailability: number; // 0-100
+  radiationExposure: number; // mSv/h (demonstration scale)
+  incubationTime: number; // hours elapsed
+}
+
+export type VariableRole = 'independent' | 'dependent' | 'controlled';
+
+export interface ExperimentVariable {
+  name: string;
+  role: VariableRole;
+  value: string;
+  unit?: string;
+}
+
+export interface Experiment {
+  id: string;
+  name: string;
+  researchQuestion: string;
+  hypothesis: string;
+  sampleId?: string;
+  organismId?: string;
+  controlGroup: string;
+  experimentalGroup: string;
+  independentVariables: ExperimentVariable[];
+  dependentVariables: ExperimentVariable[];
+  controlledVariables: ExperimentVariable[];
+  compoundIds: string[];
+  environment: EnvironmentConditions;
+  durationHours: number;
+  observations: string[];
+  notes: string;
+  status: 'draft' | 'active' | 'completed' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SimulationStatus = 'idle' | 'running' | 'paused' | 'completed';
+
+export interface OrganismSimulationState {
+  population: number;
+  viability: number; // 0-100
+  replicationRate: number; // per hour
+  stress: number; // 0-100
+  mutationIndicator: number; // 0-100 (educational indicator)
+  environmentalTolerance: number; // 0-100
+}
+
+export interface SimulationEvent {
+  tick: number;
+  timeHours: number;
+  message: string;
+  type: 'info' | 'warning' | 'change';
+}
+
+export interface SimulationSnapshot {
+  tick: number;
+  timeHours: number;
+  organismState: OrganismSimulationState;
+  environment: EnvironmentConditions;
+}
+
+export interface Simulation {
+  id: string;
+  experimentId?: string;
+  organismId: string;
+  status: SimulationStatus;
+  speed: number;
+  currentTick: number;
+  timeHours: number;
+  organismState: OrganismSimulationState;
+  environment: EnvironmentConditions;
+  events: SimulationEvent[];
+  snapshots: SimulationSnapshot[];
+  metadata: DataSourceMeta;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+export interface SimulationResult {
+  id: string;
+  simulationId: string;
+  experimentId?: string;
+  summary: string;
+  finalState: OrganismSimulationState;
+  timeline: SimulationSnapshot[];
+  events: SimulationEvent[];
+  controlComparison?: {
+    controlLabel: string;
+    experimentalLabel: string;
+    metrics: { name: string; control: number; experimental: number; unit: string }[];
+  };
+  metadata: DataSourceMeta;
+  createdAt: string;
+}
+
+export interface NotebookEntry {
+  id: string;
+  title: string;
+  dateTime: string;
+  experimentId?: string;
+  notes: string;
+  observations: string;
+  hypothesis: string;
+  conclusions: string;
+  tags: string[];
+  updatedAt: string;
+}
+
+export interface GlossaryEntry {
+  id: string;
+  term: string;
+  plainEnglish: string;
+  scientificDefinition: string;
+  unit?: string;
+  example: string;
+  appearsIn: string[];
+  relatedTerms: string[];
+}
+
+export interface AppSettings {
+  theme: 'dark';
+  autosaveNotebook: boolean;
+  simulationSpeedDefault: number;
+  showDisclaimers: boolean;
+  currentProjectName: string;
+}
+
+export interface MolecularModelPlaceholder {
+  id: string;
+  name: string;
+  type: 'atom' | 'molecule' | 'protein' | 'bond';
+  status: 'placeholder';
+  description: string;
+  futureCapabilities: string[];
+}
