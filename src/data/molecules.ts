@@ -1,91 +1,26 @@
 import type { MoleculeModel } from '../types/scientific';
+import { MOLECULE_CATALOGUE } from '../catalogue/data/molecules';
 
-export const CURATED_MOLECULES: MoleculeModel[] = [
-  {
-    id: 'MOL-H2O',
-    name: 'Water',
-    formula: 'H₂O',
-    atoms: [],
-    bonds: [],
-    molecularMass: 18.015,
-    charge: 0,
-    functionalGroups: ['hydroxyl'],
-    biologicalRole: {
-      simple: 'Water — the main liquid inside cells and in the body. Life needs water.',
-      standard: 'Universal biological solvent; participates in hydrolysis and hydration.',
-      technical: 'Dipolar solvent enabling hydrogen bonding networks in cellular compartments.',
-    },
-    structure2d: [
-      { x: 100, y: 80, atomId: 'O' },
-      { x: 70, y: 110, atomId: 'H' },
-      { x: 130, y: 110, atomId: 'H' },
-    ],
-    evidence: { level: 'reference-data' },
-  },
-  {
-    id: 'MOL-CO2',
-    name: 'Carbon Dioxide',
-    formula: 'CO₂',
-    atoms: [],
-    bonds: [],
-    molecularMass: 44.01,
-    charge: 0,
-    functionalGroups: ['carbonyl'],
-    biologicalRole: {
-      simple: 'CO₂ — a gas cells make during respiration. Plants use it in photosynthesis.',
-      standard: 'Cellular respiration product; substrate in photosynthesis.',
-      technical: 'Gaseous metabolite in carbon fixation and aerobic respiration pathways.',
-    },
-    structure2d: [
-      { x: 70, y: 90, atomId: 'O' },
-      { x: 100, y: 90, atomId: 'C' },
-      { x: 130, y: 90, atomId: 'O' },
-    ],
-    evidence: { level: 'reference-data' },
-  },
-  {
-    id: 'MOL-NACL',
-    name: 'Sodium Chloride',
-    formula: 'NaCl',
-    atoms: [],
-    bonds: [],
-    molecularMass: 58.44,
-    charge: 0,
-    functionalGroups: ['ionic salt'],
-    biologicalRole: {
-      simple: 'Table salt — helps control water balance in cells when dissolved.',
-      standard: 'Electrolyte affecting osmolarity and nerve signalling.',
-      technical: 'Ionic compound dissociating to Na⁺ and Cl⁻ in aqueous biological fluids.',
-    },
-    structure2d: [
-      { x: 85, y: 90, atomId: 'Na' },
-      { x: 115, y: 90, atomId: 'Cl' },
-    ],
-    evidence: { level: 'reference-data' },
-  },
-  {
-    id: 'MOL-GLUC',
-    name: 'Glucose',
-    formula: 'C₆H₁₂O₆',
-    atoms: [],
-    bonds: [],
-    molecularMass: 180.16,
-    charge: 0,
-    functionalGroups: ['aldehyde', 'hydroxyl'],
-    biologicalRole: {
-      simple: 'Glucose — a sugar cells use for energy.',
-      standard: 'Primary metabolic fuel via glycolysis.',
-      technical: 'Hexose monosaccharide substrate for glycolysis and glycogen metabolism.',
-    },
-    structure2d: [
-      { x: 100, y: 60, atomId: 'C' },
-      { x: 80, y: 90, atomId: 'C' },
-      { x: 120, y: 90, atomId: 'C' },
-      { x: 100, y: 120, atomId: 'O' },
-    ],
-    evidence: { level: 'reference-data' },
-  },
-];
+/** Legacy-compatible molecule list derived from scalable catalogue */
+export const CURATED_MOLECULES: MoleculeModel[] = MOLECULE_CATALOGUE.map((m) => ({
+  id: m.id,
+  name: m.name,
+  formula: m.formula,
+  atoms: [],
+  bonds: [],
+  molecularMass: m.molecularMass,
+  charge: m.charge,
+  functionalGroups: m.functionalGroups,
+  biologicalRole: m.biologicalRole,
+  structure2d: m.elements.slice(0, 4).map((el, i) => ({
+    x: 70 + i * 30,
+    y: 90,
+    atomId: el,
+  })),
+  evidence: m.evidence,
+}));
+
+export { MOLECULE_CATALOGUE, moleculesContainingElement, MOLECULE_LIBRARY_CATEGORIES } from '../catalogue/data/molecules';
 
 export function renderMolecule2dSvg(molecule: MoleculeModel): string {
   const nodes = molecule.structure2d ?? [];
@@ -102,4 +37,8 @@ export function renderMolecule2dSvg(molecule: MoleculeModel): string {
     )
     .join('');
   return `<svg viewBox="0 0 200 160" class="mol-svg">${bonds.join('')}${atoms}</svg>`;
+}
+
+export function catalogueEntryToMoleculeModel(id: string): MoleculeModel | undefined {
+  return CURATED_MOLECULES.find((m) => m.id === id);
 }

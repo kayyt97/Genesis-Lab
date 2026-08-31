@@ -23,6 +23,7 @@ import type {
   SimulationRun,
   MicroscopeSpecimen,
 } from '../types/scientific';
+import type { ActiveExperimentSetup, ScientificReport } from '../types/experimentWorkspace';
 import {
   demoSamples,
   demoExperiments,
@@ -30,8 +31,9 @@ import {
   demoSimulationResults,
 } from '../data/demoData';
 import { simulationTick } from '../simulation/engine';
+import { sanitizePersistedWorkspace, sanitizePersistedSettings } from '../services/persistedStateMigration';
 
-const STORAGE_KEY = 'genesis-lab-state-v2';
+const STORAGE_KEY = 'genesis-lab-state-v3';
 
 interface AppState {
   samples: Sample[];
@@ -48,6 +50,10 @@ interface AppState {
   labHandoff: LabHandoffPayload | null;
   priorSimulationSnapshot: Simulation | null;
   microscopeSpecimen: MicroscopeSpecimen | null;
+  activeExperimentSetup: ActiveExperimentSetup | null;
+  controlSimulation: Simulation | null;
+  reportDraft: ScientificReport | null;
+  userWorkspaceActive: boolean;
 }
 
 type AppAction =
@@ -79,6 +85,13 @@ type AppAction =
   | { type: 'UPDATE_THERAPEUTIC'; payload: TherapeuticDesign }
   | { type: 'SET_LAB_HANDOFF'; payload: LabHandoffPayload | null }
   | { type: 'SET_MICROSCOPE_SPECIMEN'; payload: MicroscopeSpecimen | null }
+  | { type: 'SET_EXPERIMENT_SETUP'; payload: ActiveExperimentSetup | null }
+  | { type: 'UPDATE_EXPERIMENT_SETUP'; payload: ActiveExperimentSetup }
+  | { type: 'SET_CONTROL_SIMULATION'; payload: Simulation | null }
+  | { type: 'TICK_CONTROL_SIMULATION' }
+  | { type: 'SET_REPORT_DRAFT'; payload: ScientificReport | null }
+  | { type: 'UPDATE_REPORT_SECTION'; payload: { sectionId: string; content: string } }
+  | { type: 'SET_USER_WORKSPACE_ACTIVE'; payload: boolean }
   | { type: 'LOAD_STATE'; payload: Partial<AppState> };
 
 const defaultSettings: AppSettings = {
@@ -91,6 +104,7 @@ const defaultSettings: AppSettings = {
   activeProjectId: null,
   autoControlEnabled: true,
   replicateCount: 1,
+  showDemoContent: true,
 };
 
 const demoProject: ResearchProject = {
@@ -122,6 +136,10 @@ const initialState: AppState = {
   labHandoff: null,
   priorSimulationSnapshot: null,
   microscopeSpecimen: null,
+  activeExperimentSetup: null,
+  controlSimulation: null,
+  reportDraft: null,
+  userWorkspaceActive: false,
 };
 
 function duplicateExperiment(exp: Experiment): Experiment {
@@ -202,12 +220,19 @@ function appReducer(state: AppState, action: AppAction): AppState {
           ? JSON.parse(JSON.stringify(state.activeSimulation))
           : null,
       };
-    case 'TICK_SIMULATION':
+    case 'TICK_SIMULATION': {
       if (!state.activeSimulation) return state;
+      const nextSim = simulationTick(state.activeSimulation);
+      const nextControl =
+        state.controlSimulation && state.controlSimulation.status === 'running'
+          ? simulationTick(state.controlSimulation)
+          : state.controlSimulation;
       return {
         ...state,
-        activeSimulation: simulationTick(state.activeSimulation),
+        activeSimulation: nextSim,
+        controlSimulation: nextControl,
       };
+    }
     case 'ADD_SIMULATION_RESULT':
       return {
         ...state,
@@ -267,13 +292,46 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, labHandoff: action.payload };
     case 'SET_MICROSCOPE_SPECIMEN':
       return { ...state, microscopeSpecimen: action.payload };
+    case 'SET_EXPERIMENT_SETUP':
+      return {
+        ...state,
+        activeExperimentSetup: action.payload,
+        userWorkspaceActive: action.payload ? true : state.userWorkspaceActive,
+      };
+    case 'UPDATE_EXPERIMENT_SETUP':
+      return { ...state, activeExperimentSetup: action.payload, userWorkspaceActive: true };
+    case 'SET_CONTROL_SIMULATION':
+      return { ...state, controlSimulation: action.payload };
+    case 'TICK_CONTROL_SIMULATION':
+      if (!state.controlSimulation) return state;
+      return { ...state, controlSimulation: simulationTick(state.controlSimulation) };
+    case 'SET_REPORT_DRAFT':
+      return { ...state, reportDraft: action.payload };
+    case 'UPDATE_REPORT_SECTION':
+      if (!state.reportDraft) return state;
+      return {
+        ...state,
+        reportDraft: {
+          ...state.reportDraft,
+          sections: state.reportDraft.sections.map((s) =>
+            s.id === action.payload.sectionId ? { ...s, content: action.payload.content, source: 'user-entered' as const } : s,
+          ),
+          updatedAt: new Date().toISOString(),
+        },
+      };
+    case 'SET_USER_WORKSPACE_ACTIVE':
+      return { ...state, userWorkspaceActive: action.payload };
     case 'LOAD_STATE': {
-      const loaded = action.payload;
+      const loaded = sanitizePersistedWorkspace(action.payload as Record<string, unknown>) as Partial<AppState>;
       return {
         ...state,
         ...loaded,
-        settings: { ...defaultSettings, ...loaded.settings },
+        settings: { ...defaultSettings, ...sanitizePersistedSettings(loaded.settings), ...loaded.settings },
         genomeUpload: loaded.genomeUpload ?? null,
+        activeExperimentSetup: loaded.activeExperimentSetup ?? null,
+        controlSimulation: loaded.controlSimulation ?? null,
+        reportDraft: loaded.reportDraft ?? null,
+        activeSimulation: loaded.activeSimulation ?? null,
       };
     }
     default:
@@ -291,7 +349,18 @@ const AppContext = createContext<AppContextValue | null>(null);
 function loadPersistedState(): Partial<AppState> | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as Partial<AppState>;
+    if (raw) {
+      const parsed = sanitizePersistedWorkspace(JSON.parse(raw) as Record<string, unknown>);
+      return parsed as Partial<AppState>;
+    }
+    const legacyV2 = localStorage.getItem('genesis-lab-state-v2');
+    if (legacyV2) {
+      const v2 = sanitizePersistedWorkspace(JSON.parse(legacyV2) as Record<string, unknown>);
+      return {
+        ...(v2 as Partial<AppState>),
+        settings: { ...defaultSettings, ...sanitizePersistedSettings(v2.settings as Partial<AppSettings>), showDemoContent: (v2.settings as AppSettings | undefined)?.showDemoContent ?? true },
+      };
+    }
     const legacy = localStorage.getItem('genesis-lab-state-v1');
     if (legacy) {
       const v1 = JSON.parse(legacy) as Partial<AppState>;
@@ -314,6 +383,7 @@ function loadPersistedState(): Partial<AppState> | null {
 function persistState(state: AppState) {
   try {
     const toSave = {
+      workspaceStorageVersion: 3,
       experiments: state.experiments,
       notebookEntries: state.notebookEntries,
       samples: state.samples,
@@ -323,6 +393,11 @@ function persistState(state: AppState) {
       projects: state.projects,
       therapeuticDesigns: state.therapeuticDesigns,
       genomeSimulationCopies: state.genomeSimulationCopies,
+      activeExperimentSetup: state.activeExperimentSetup,
+      controlSimulation: state.controlSimulation,
+      reportDraft: state.reportDraft,
+      activeSimulation: state.activeSimulation,
+      userWorkspaceActive: state.userWorkspaceActive,
       ...(state.genomeUpload?.isPersisted ? { genomeUpload: state.genomeUpload } : {}),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
@@ -331,15 +406,16 @@ function persistState(state: AppState) {
   }
 }
 
-export function AppProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(appReducer, initialState);
+function initAppState(): AppState {
+  const saved = loadPersistedState();
+  if (saved) {
+    return appReducer(initialState, { type: 'LOAD_STATE', payload: saved });
+  }
+  return initialState;
+}
 
-  useEffect(() => {
-    const saved = loadPersistedState();
-    if (saved) {
-      dispatch({ type: 'LOAD_STATE', payload: saved });
-    }
-  }, []);
+export function AppProvider({ children }: { children: ReactNode }) {
+  const [state, dispatch] = useReducer(appReducer, initialState, initAppState);
 
   useEffect(() => {
     persistState(state);
@@ -354,6 +430,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     state.therapeuticDesigns,
     state.genomeSimulationCopies,
     state.genomeUpload,
+    state.activeExperimentSetup,
+    state.controlSimulation,
+    state.reportDraft,
+    state.activeSimulation,
+    state.userWorkspaceActive,
   ]);
 
   return (
@@ -378,6 +459,7 @@ export function sendToVirtualLab(
   entityId: string,
   label: string,
   type: LabHandoffPayload['type'],
+  extras?: Pick<LabHandoffPayload, 'moleculeRole' | 'formula'>,
 ) {
   dispatch({
     type: 'SET_LAB_HANDOFF',
@@ -388,6 +470,7 @@ export function sendToVirtualLab(
       entityId,
       label,
       timestamp: new Date().toISOString(),
+      ...extras,
     },
   });
 }

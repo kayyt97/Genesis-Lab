@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -8,7 +8,8 @@ import { EvidenceBadge } from '../components/ui/EvidenceBadge';
 import { resolveTiered } from '../content/language';
 import { useLanguage } from '../components/ui/LanguageControl';
 import { useAppState, generateId } from '../store/AppContext';
-import { BIOLOGICAL_LIBRARY, getReferenceById } from '../data/biologicalLibrary';
+import { organismIndex } from '../catalogue/index';
+import { getReferenceById } from '../data/biologicalLibrary';
 import { demoOrganisms } from '../data/demoData';
 import type { MicroscopeMagnification, MicroscopeSpecimen } from '../types/scientific';
 
@@ -79,17 +80,45 @@ export function VirtualMicroscopePage() {
   const [panY, setPanY] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
+  const [linkFields, setLinkFields] = useState(true);
   const [showLoadPanel, setShowLoadPanel] = useState(false);
+  const prevMagRef = useRef<MicroscopeMagnification>(400);
 
   const specimen = state.microscopeSpecimen;
   const handoff = state.labHandoff;
+  const setup = state.activeExperimentSetup;
+
+  const setMagnification = useCallback((newMag: MicroscopeMagnification) => {
+    const oldScale = prevMagRef.current / 400;
+    const newScale = newMag / 400;
+    const ratio = oldScale / newScale;
+    setPanX((x) => Math.round(x * ratio));
+    setPanY((y) => Math.round(y * ratio));
+    prevMagRef.current = newMag;
+    setMag(newMag);
+  }, []);
+
+  const centreView = useCallback(() => {
+    setPanX(0);
+    setPanY(0);
+  }, []);
+
+  const handlePanDrag = useCallback((dx: number, dy: number) => {
+    setPanX((x) => Math.max(-120, Math.min(120, x + dx)));
+    setPanY((y) => Math.max(-120, Math.min(120, y + dy)));
+  }, []);
 
   const structures = useMemo(() => getStructuresForSpecimen(specimen), [specimen]);
   const visibleStructures = structures.filter((s) => mag >= s.minMag);
 
   const focusBlur = Math.abs(focus - 80) * 0.15;
-  const effectiveScale = mag / 400;
-  const cellSize = 60 + effectiveScale * 40;
+  const fovScale = mag / 400;
+  const cellSize = Math.max(40, 120 / fovScale);
+  const controlSpecimen = compareMode && setup?.control?.mode !== 'none-not-applicable' && specimen
+    ? { ...specimen, label: `${specimen.label} (${setup!.control.sampleId})`, simulatedViability: 90 }
+    : compareMode && state.settings.autoControlEnabled && specimen
+    ? { ...specimen, label: `${specimen.label} (Control)`, simulatedViability: 90 }
+    : null;
 
   const loadSpecimen = useCallback((s: MicroscopeSpecimen) => {
     dispatch({ type: 'SET_MICROSCOPE_SPECIMEN', payload: s });
@@ -131,10 +160,6 @@ export function VirtualMicroscopePage() {
     });
   };
 
-  const controlSpecimen = compareMode && state.settings.autoControlEnabled
-    ? { ...specimen!, label: `${specimen!.label} (Control)`, simulatedViability: 90 }
-    : null;
-
   return (
     <div className="microscope-page">
       <PageHeader
@@ -170,7 +195,7 @@ export function VirtualMicroscopePage() {
           <div className="specimen-load-panel">
             <h4>Reference specimens</h4>
             <div className="specimen-grid">
-              {BIOLOGICAL_LIBRARY.filter((e) => e.morphologySupported).slice(0, 8).map((e) => (
+              {organismIndex.query({ compatibleModule: 'microscope', pageSize: 12 }).items.filter((e) => e.morphologySupported).map((e) => (
                 <button
                   key={e.id}
                   type="button"
@@ -214,11 +239,12 @@ export function VirtualMicroscopePage() {
         <Card title="Magnification & Optics">
           <div className="mag-buttons">
             {MAGS.map((m) => (
-              <button key={m} type="button" className={`mag-btn ${mag === m ? 'active' : ''}`} onClick={() => setMag(m)}>
+              <button key={m} type="button" className={`mag-btn ${mag === m ? 'active' : ''}`} onClick={() => setMagnification(m)}>
                 {m}×
               </button>
             ))}
           </div>
+          <Button variant="ghost" onClick={centreView}>Reset / Centre View</Button>
           <label>Focus: {focus}%
             <input type="range" min={0} max={100} value={focus} onChange={(e) => setFocus(parseInt(e.target.value, 10))} />
           </label>
@@ -229,10 +255,10 @@ export function VirtualMicroscopePage() {
             <input type="range" min={0} max={100} value={contrast} onChange={(e) => setContrast(parseInt(e.target.value, 10))} />
           </label>
           <label>Pan X
-            <input type="range" min={-50} max={50} value={panX} onChange={(e) => setPanX(parseInt(e.target.value, 10))} />
+            <input type="range" min={-120} max={120} value={panX} onChange={(e) => setPanX(parseInt(e.target.value, 10))} />
           </label>
           <label>Pan Y
-            <input type="range" min={-50} max={50} value={panY} onChange={(e) => setPanY(parseInt(e.target.value, 10))} />
+            <input type="range" min={-120} max={120} value={panY} onChange={(e) => setPanY(parseInt(e.target.value, 10))} />
           </label>
           <div className="scale-bar">
             Scale bar: {SCALE_UM[mag]} µm at {mag}×
@@ -258,6 +284,8 @@ export function VirtualMicroscopePage() {
                 structures={visibleStructures}
                 selected={selected}
                 onSelect={setSelected}
+                onPanDrag={handlePanDrag}
+                showMinimap={!compareMode}
                 label={compareMode ? 'Experimental' : undefined}
               />
               {compareMode && controlSpecimen && (
@@ -267,22 +295,33 @@ export function VirtualMicroscopePage() {
                   focusBlur={focusBlur}
                   illumination={illumination}
                   contrast={contrast}
-                  panX={panX}
-                  panY={panY}
+                  panX={linkFields ? panX : panX}
+                  panY={linkFields ? panY : panY}
                   cellSize={cellSize}
                   structures={visibleStructures}
                   selected={null}
                   onSelect={() => {}}
+                  onPanDrag={linkFields ? handlePanDrag : undefined}
+                  showMinimap={false}
                   label="Control"
                 />
               )}
             </div>
           )}
           {specimen && (
-            <label className="checkbox-label">
-              <input type="checkbox" checked={compareMode} onChange={(e) => setCompareMode(e.target.checked)} />
-              Control vs Experimental side-by-side
-            </label>
+            <>
+              <label className="checkbox-label">
+                <input type="checkbox" checked={compareMode} onChange={(e) => setCompareMode(e.target.checked)} />
+                Control vs Experimental side-by-side
+              </label>
+              {compareMode && (
+                <label className="checkbox-label">
+                  <input type="checkbox" checked={linkFields} onChange={(e) => setLinkFields(e.target.checked)} />
+                  Link fields of view
+                </label>
+              )}
+              <p className="text-muted fov-hint">Drag inside the field to pan · Pan sliders stay synchronised</p>
+            </>
           )}
         </Card>
       </div>
@@ -329,6 +368,8 @@ function MicroscopeField({
   structures,
   selected,
   onSelect,
+  onPanDrag,
+  showMinimap = false,
   label,
 }: {
   specimen: MicroscopeSpecimen;
@@ -342,11 +383,33 @@ function MicroscopeField({
   structures: MicroscopeStructure[];
   selected: string | null;
   onSelect: (id: string) => void;
+  onPanDrag?: (dx: number, dy: number) => void;
+  showMinimap?: boolean;
   label?: string;
 }) {
   const viability = specimen.simulatedViability ?? 85;
   const brightness = illumination / 100;
   const contrastFactor = contrast / 50;
+  const dragRef = useRef<{ x: number; y: number } | null>(null);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (!onPanDrag) return;
+    dragRef.current = { x: e.clientX, y: e.clientY };
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragRef.current || !onPanDrag) return;
+    const dx = e.clientX - dragRef.current.x;
+    const dy = e.clientY - dragRef.current.y;
+    dragRef.current = { x: e.clientX, y: e.clientY };
+    onPanDrag(dx, dy);
+  };
+
+  const onPointerUp = () => { dragRef.current = null; };
+
+  const minimapX = 50 + (panX / 120) * 35;
+  const minimapY = 50 + (panY / 120) * 35;
 
   return (
     <div className="microscope-field-wrap">
@@ -355,7 +418,12 @@ function MicroscopeField({
         className="microscope-viewport"
         style={{
           filter: `brightness(${0.5 + brightness * 0.5}) contrast(${contrastFactor}) blur(${focusBlur}px)`,
+          cursor: onPanDrag ? 'grab' : 'default',
         }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerUp}
       >
         <div
           className="microscope-view"
@@ -380,12 +448,18 @@ function MicroscopeField({
                   width: s.size * (mag / 400),
                   height: s.size * (mag / 400),
                 }}
-                onClick={() => onSelect(s.id)}
+                onClick={(e) => { e.stopPropagation(); onSelect(s.id); }}
                 aria-label={s.label}
               />
             ))}
           </div>
         </div>
+        {showMinimap && (
+          <div className="microscope-minimap" aria-hidden="true">
+            <div className="minimap-specimen" />
+            <div className="minimap-viewport-indicator" style={{ left: `${minimapX}%`, top: `${minimapY}%` }} />
+          </div>
+        )}
       </div>
     </div>
   );

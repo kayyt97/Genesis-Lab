@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { findGlossaryEntry } from '../../data/glossary';
+import { findGlossaryEntry, getGlossaryHelpText } from '../../services/glossaryService';
 import { getGlossaryText, getGlossaryTitle } from '../../content/language';
 import { HelpPopover } from './HelpPopover';
 import { useLanguage } from './LanguageControl';
@@ -68,14 +68,15 @@ export function GlossaryTerm({ term, children, helpText }: GlossaryTermProps) {
 interface ParameterHelpProps {
   label: string;
   help: import('../../types/language').TieredText | string;
+  glossaryId?: string;
 }
 
-export function ParameterHelp({ label, help }: ParameterHelpProps) {
+export function ParameterHelp({ label, help, glossaryId }: ParameterHelpProps) {
   const languageLevel = useLanguage();
+  const glossaryText = glossaryId ? getGlossaryHelpText(glossaryId, languageLevel) : '';
   const text =
-    typeof help === 'string'
-      ? help
-      : help[languageLevel];
+    glossaryText ||
+    (typeof help === 'string' ? help : help[languageLevel]);
 
   return (
     <HelpPopover

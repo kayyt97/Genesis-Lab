@@ -1,0 +1,176 @@
+import type { GeneCatalogueEntry, CytobandReference } from '../types';
+import type { TieredText } from '../../types/language';
+
+function tier(s: string, std?: string, tech?: string): TieredText {
+  return { simple: s, standard: std ?? s, technical: tech ?? std ?? s };
+}
+
+function gene(
+  symbol: string,
+  fullName: string,
+  chromosome: string,
+  start: number,
+  end: number,
+  cytoband: string,
+  pathwayIds: string[] = [],
+  diseaseContext: string[] = [],
+  extra?: Partial<GeneCatalogueEntry>,
+): GeneCatalogueEntry {
+  const id = `GEN-${symbol}`;
+  const desc = tier(
+    `${symbol} — ${fullName}. Educational reference gene.`,
+    `${fullName} (${symbol}) — reference gene entry.`,
+    `Reference locus ${symbol} at ${chromosome}:${start}-${end}.`,
+  );
+  return {
+    id,
+    symbol,
+    fullName,
+    name: symbol,
+    chromosome,
+    cytoband,
+    start,
+    end,
+    category: 'gene',
+    subcategory: diseaseContext[0] ?? 'reference',
+    description: desc,
+    summary: desc,
+    function: tier(
+      `${symbol} has a defined biological role studied in genetics education.`,
+      `Reference function annotation for ${symbol}.`,
+      `Curated educational function summary for ${symbol}.`,
+    ),
+    pathwayIds,
+    diseaseContext,
+    aliases: [symbol.toLowerCase(), fullName.toLowerCase()],
+    tags: ['gene', ...pathwayIds.map((p) => p.replace('PATH-', ''))],
+    keywords: [symbol.toLowerCase(), fullName.toLowerCase(), chromosome.toLowerCase(), cytoband.toLowerCase()],
+    relatedIds: pathwayIds,
+    compatibleModules: ['genome-explorer', 'pathway-explorer', 'therapeutic-design', 'notebook'],
+    evidence: { level: 'reference-data' },
+    proteinId: `PROT-${symbol}`,
+    ...extra,
+  };
+}
+
+/** Scalable gene reference catalogue — architecture supports further expansion */
+export const GENE_CATALOGUE: GeneCatalogueEntry[] = [
+  gene('BRCA1', 'BRCA1 DNA repair associated', '17', 43044295, 43170245, '17q21.31', ['PATH-DNA-REPAIR'], ['hereditary breast/ovarian cancer reference']),
+  gene('BRCA2', 'BRCA2 DNA repair associated', '13', 32315474, 32400266, '13q13.1', ['PATH-DNA-REPAIR'], ['hereditary cancer reference']),
+  gene('TP53', 'Tumour protein p53', '17', 7668421, 7687490, '17p13.1', ['PATH-DNA-REPAIR', 'PATH-CELL-CYCLE'], ['Li-Fraumeni reference']),
+  gene('CFTR', 'CF transmembrane conductance regulator', '7', 117480025, 117668665, '7q31.32', ['PATH-ION-TRANSPORT'], ['cystic fibrosis reference']),
+  gene('APOE', 'Apolipoprotein E', '19', 44905754, 44909393, '19q13.32', ['PATH-LIPID'], ['Alzheimer risk reference']),
+  gene('HTT', 'Huntingtin', '4', 3076407, 3245687, '4p16.3', ['PATH-HTT'], ['Huntington disease reference']),
+  gene('HBB', 'Haemoglobin subunit beta', '11', 5225464, 5229395, '11p15.4', ['PATH-BLOOD'], ['sickle cell reference']),
+  gene('HBA1', 'Haemoglobin subunit alpha 1', '16', 176680, 177522, '16p13.3', ['PATH-BLOOD'], ['thalassaemia reference']),
+  gene('HBA2', 'Haemoglobin subunit alpha 2', '16', 172876, 173710, '16p13.3', ['PATH-BLOOD'], ['thalassaemia reference']),
+  gene('F8', 'Coagulation factor VIII', 'X', 154835788, 155026597, 'Xq28', ['PATH-BLOOD'], ['haemophilia A reference']),
+  gene('F9', 'Coagulation factor IX', 'X', 138612561, 138645607, 'Xq27.1', ['PATH-BLOOD'], ['haemophilia B reference']),
+  gene('DMD', 'Dystrophin', 'X', 31119257, 33339609, 'Xp21.2', ['PATH-MUSCLE'], ['Duchenne muscular dystrophy reference']),
+  gene('PAH', 'Phenylalanine hydroxylase', '12', 102835768, 102958443, '12q23.2', ['PATH-METABOLIC'], ['phenylketonuria reference']),
+  gene('LDLR', 'Low density lipoprotein receptor', '19', 11089458, 11210703, '19p13.2', ['PATH-LIPID'], ['familial hypercholesterolaemia reference']),
+  gene('PCSK9', 'Proprotein convertase subtilisin/kexin type 9', '1', 55039447, 55064852, '1p32.3', ['PATH-LIPID'], ['cholesterol metabolism reference']),
+  gene('KCNQ1', 'Potassium voltage-gated channel subfamily Q member 1', '11', 2469650, 2904421, '11p15.5', ['PATH-ION-CHANNEL'], ['Long QT reference']),
+  gene('KCNH2', 'Potassium voltage-gated channel subfamily H member 2', '7', 150945029, 150965095, '7q36.1', ['PATH-ION-CHANNEL'], ['Long QT reference']),
+  gene('SCN5A', 'Sodium voltage-gated channel alpha subunit 5', '3', 38589569, 38662064, '3p22.2', ['PATH-ION-CHANNEL'], ['cardiac arrhythmia reference']),
+  gene('RYR2', 'Ryanodine receptor 2', '1', 237042086, 237833085, '1q43', ['PATH-ION-CHANNEL'], ['arrhythmia reference']),
+  gene('MLH1', 'MutL homolog 1', '3', 37027444, 37092337, '3p22.2', ['PATH-DNA-REPAIR'], ['Lynch syndrome reference']),
+  gene('MSH2', 'MutS homolog 2', '2', 47478382, 47614169, '2p21', ['PATH-DNA-REPAIR'], ['Lynch syndrome reference']),
+  gene('MSH6', 'MutS homolog 6', '2', 47775609, 47805889, '2p16.3', ['PATH-DNA-REPAIR'], ['Lynch syndrome reference']),
+  gene('PMS2', 'PMS1 homolog 2', '7', 5968738, 6009124, '7p22.1', ['PATH-DNA-REPAIR'], ['Lynch syndrome reference']),
+  gene('APC', 'APC regulator of WNT signalling pathway', '5', 112707806, 112846239, '5q22.2', ['PATH-CELL-CYCLE'], ['colorectal cancer reference']),
+  gene('KRAS', 'KRAS proto-oncogene', '12', 25205246, 25250936, '12p12.1', ['PATH-SIGNALING'], ['oncogene reference']),
+  gene('BRAF', 'B-Raf proto-oncogene', '7', 140719327, 140924929, '7q34', ['PATH-SIGNALING'], ['oncogene reference']),
+  gene('EGFR', 'Epidermal growth factor receptor', '7', 55019017, 55211628, '7p11.2', ['PATH-SIGNALING'], ['cancer therapy target reference']),
+  gene('MYC', 'MYC proto-oncogene', '8', 127735434, 127742951, '8q24.21', ['PATH-CELL-CYCLE'], ['oncogene reference']),
+  gene('PTEN', 'Phosphatase and tensin homolog', '10', 87863625, 87971930, '10q23.31', ['PATH-SIGNALING'], ['tumour suppressor reference']),
+  gene('RB1', 'RB transcriptional corepressor 1', '13', 48303751, 48481890, '13q14.2', ['PATH-CELL-CYCLE'], ['retinoblastoma reference']),
+  gene('VHL', 'Von Hippel-Lindau tumour suppressor', '3', 10141607, 10153666, '3p25.3', ['PATH-SIGNALING'], ['VHL syndrome reference']),
+  gene('RET', 'Ret proto-oncogene', '10', 43077028, 43130351, '10q11.21', ['PATH-SIGNALING'], ['MEN2 reference']),
+  gene('MECP2', 'Methyl CpG binding protein 2', 'X', 154021573, 154137103, 'Xq28', ['PATH-NEURO'], ['Rett syndrome reference']),
+  gene('FMR1', 'Fragile X messenger ribonucleoprotein 1', 'X', 147912049, 147926020, 'Xq27.3', ['PATH-NEURO'], ['fragile X reference']),
+  gene('SMN1', 'Survival of motor neuron 1', '5', 70921108, 70957129, '5q13.2', ['PATH-NEURO'], ['spinal muscular atrophy reference']),
+  gene('GBA', 'Glucosylceramidase beta', '1', 155204239, 155214646, '1q21.3', ['PATH-METABOLIC'], ['Gaucher disease reference']),
+  gene('LRRK2', 'Leucine rich repeat kinase 2', '12', 40634229, 40763087, '12q12', ['PATH-NEURO'], ['Parkinson disease reference']),
+  gene('SNCA', 'Synuclein alpha', '4', 89724034, 89838304, '4q22.1', ['PATH-NEURO'], ['Parkinson disease reference']),
+  gene('APP', 'Amyloid beta precursor protein', '21', 25880534, 26171128, '21q21.3', ['PATH-NEURO'], ['Alzheimer disease reference']),
+  gene('PSEN1', 'Presenilin 1', '14', 73173558, 73208548, '14q24.2', ['PATH-NEURO'], ['early-onset Alzheimer reference']),
+  gene('PSEN2', 'Presenilin 2', '1', 227073667, 227099117, '1q42.13', ['PATH-NEURO'], ['Alzheimer reference']),
+  gene('TSC1', 'TSC complex subunit 1', '9', 132891347, 132946058, '9q34.13', ['PATH-SIGNALING'], ['tuberous sclerosis reference']),
+  gene('TSC2', 'TSC complex subunit 2', '16', 2047563, 2089490, '16p13.3', ['PATH-SIGNALING'], ['tuberous sclerosis reference']),
+  gene('NF1', 'Neurofibromin 1', '17', 31094741, 31377677, '17q11.2', ['PATH-SIGNALING'], ['neurofibromatosis reference']),
+  gene('NF2', 'Merlin', '22', 29683561, 29701075, '22q12.2', ['PATH-SIGNALING'], ['neurofibromatosis 2 reference']),
+  gene('INS', 'Insulin', '11', 2153857, 2154559, '11p15.5', ['PATH-METABOLIC', 'PATH-ENDOCRINE'], ['diabetes reference']),
+  gene(
+    'H19',
+    'H19 imprinted maternally expressed transcript',
+    '11',
+    1995000,
+    2012000,
+    '11p15.5',
+    ['PATH-IMPRINTING'],
+    ['Silver–Russell syndrome imprinting reference'],
+    {
+      function: tier(
+        'H19 is an imprinted gene — usually only the copy from the mother is active. Problems here are often about methylation (epigenetic), not a simple DNA letter change.',
+        'Maternally expressed imprinted non-coding RNA at 11p15.5; regulated via ICR1 methylation.',
+        'Imprinted lncRNA within ICR1; loss of methylation at ICR1 is an epigenetic abnormality distinct from sequence variants.',
+      ),
+      keywords: ['h19', 'imprinting', 'icr1', '11p15.5', 'silver-russell', 'epigenetic'],
+      aliases: ['h19', 'H19 imprinted maternally expressed transcript'],
+    },
+  ),
+  gene(
+    'IGF2',
+    'Insulin like growth factor 2',
+    '11',
+    2145000,
+    2170000,
+    '11p15.5',
+    ['PATH-IMPRINTING', 'PATH-ENDOCRINE'],
+    ['Beckwith–Wiedemann / growth imprinting reference'],
+    {
+      function: tier(
+        'IGF2 helps control growth. It is imprinted — normally only the father\'s copy is active. Imprinting disorders involve epigenetic regulation, not just broken gene sequence.',
+        'Paternally expressed growth factor at 11p15.5; oppositely imprinted to H19 via ICR1.',
+        'Imprinted growth factor; dysregulation may reflect methylation/imprinting defects rather than coding sequence variants alone.',
+      ),
+      keywords: ['igf2', 'imprinting', 'icr1', '11p15.5', 'growth', 'epigenetic'],
+      aliases: ['igf2', 'insulin like growth factor 2'],
+    },
+  ),
+  gene('G6PD', 'Glucose-6-phosphate dehydrogenase', 'X', 154531587, 154547000, 'Xq28', ['PATH-METABOLIC'], ['G6PD deficiency reference']),
+  gene('CYP2D6', 'Cytochrome P450 family 2 subfamily D member 6', '22', 42126450, 42130825, '22q13.2', ['PATH-PHARMACOGENETICS'], ['drug metabolism reference']),
+  gene('CYP2C19', 'Cytochrome P450 family 2 subfamily C member 19', '10', 94762681, 94787801, '10q23.33', ['PATH-PHARMACOGENETICS'], ['drug metabolism reference']),
+  gene('HLA-B', 'Major histocompatibility complex, class I, B', '6', 31321649, 31337062, '6p21.33', ['PATH-IMMUNE'], ['immune recognition reference']),
+  gene('IL6', 'Interleukin 6', '7', 22727027, 22731704, '7p15.3', ['PATH-IMMUNE'], ['inflammation reference']),
+  gene('TNF', 'Tumour necrosis factor', '6', 31543344, 31546166, '6p21.33', ['PATH-IMMUNE'], ['inflammation reference']),
+  gene('ACE2', 'Angiotensin I converting enzyme 2', 'X', 15597569, 15601851, 'Xp22.2', ['PATH-SIGNALING'], ['viral entry receptor reference']),
+  gene('PRNP', 'Prion protein', '20', 4699600, 4729099, '20p13', ['PATH-NEURO'], ['prion disease reference']),
+  gene('MT-ND1', 'Mitochondrially encoded NADH dehydrogenase 1', 'MT', 3307, 4262, 'MT', ['PATH-METABOLIC'], ['mitochondrial disease reference']),
+  gene('MT-ATP6', 'Mitochondrially encoded ATP synthase membrane subunit 6', 'MT', 8527, 9207, 'MT', ['PATH-METABOLIC'], ['mitochondrial disease reference']),
+];
+
+export const CYTOBAND_CATALOGUE: CytobandReference[] = [
+  { id: 'CYTO-11P15', chromosome: '11', band: '11p15.5', start: 1, end: 28000000, label: '11p15.5' },
+  { id: 'CYTO-17P13', chromosome: '17', band: '17p13.1', start: 1, end: 8500000, label: '17p13.1' },
+  { id: 'CYTO-17Q21', chromosome: '17', band: '17q21.31', start: 41000000, end: 45000000, label: '17q21.31' },
+  { id: 'CYTO-4P16', chromosome: '4', band: '4p16.3', start: 1, end: 12000000, label: '4p16.3' },
+  { id: 'CYTO-7Q31', chromosome: '7', band: '7q31.32', start: 110000000, end: 120000000, label: '7q31.32' },
+  { id: 'CYTO-19Q13', chromosome: '19', band: '19q13.32', start: 44000000, end: 46000000, label: '19q13.32' },
+  { id: 'CYTO-21Q21', chromosome: '21', band: '21q21.3', start: 25000000, end: 27000000, label: '21q21.3' },
+];
+
+export function geneToLegacyReference(g: GeneCatalogueEntry) {
+  return {
+    id: g.id,
+    symbol: g.symbol,
+    name: g.fullName,
+    chromosome: g.chromosome,
+    start: g.start,
+    end: g.end,
+    description: g.description,
+    function: g.function,
+    pathwayIds: g.pathwayIds,
+  };
+}

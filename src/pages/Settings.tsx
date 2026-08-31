@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button';
 import { useAppState } from '../store/AppContext';
 import { LanguageControl } from '../components/ui/LanguageControl';
 
-const STORAGE_KEYS = ['genesis-lab-state-v1', 'genesis-lab-state-v2'];
+const STORAGE_KEYS = ['genesis-lab-state-v1', 'genesis-lab-state-v2', 'genesis-lab-state-v3'];
 
 export function SettingsPage() {
   const { state, dispatch } = useAppState();
@@ -107,6 +107,24 @@ export function SettingsPage() {
           </label>
         </Card>
 
+        <Card title="Data provenance">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={settings.showDemoContent}
+              onChange={(e) => update({ showDemoContent: e.target.checked })}
+            />
+            Show examples / demo content
+          </label>
+          <p className="text-muted">
+            When you create your own experiments, demo records are excluded from reports and workspace calculations.
+            Uncheck to hide all demo content once you begin working with user data.
+          </p>
+          {state.userWorkspaceActive && !settings.showDemoContent && (
+            <p className="text-muted">Demo content hidden — user workspace active.</p>
+          )}
+        </Card>
+
         <Card title="Data Management">
           <p className="text-muted">
             All data is stored locally in your browser. Genomic uploads are processed on-device only.
@@ -133,14 +151,17 @@ export function SettingsPage() {
           )}
         </Card>
 
-        <Card title="About">
+        <Card title="About & Credits">
           <dl className="detail-dl">
             <dt>Application</dt><dd>Genesis Lab</dd>
-            <dt>Version</dt><dd>Phase 3 — Connected Lab</dd>
+            <dt>Created by</dt><dd>Kara Louise Tait</dd>
+            <dt>Copyright</dt><dd>© 2026 Kara Louise Tait. All rights reserved.</dd>
+            <dt>Version</dt><dd>Phase 5 — Polish & Research Workflow</dd>
             <dt>Simulation Engine</dt><dd>Prototype v1.0 (Educational Model)</dd>
             <dt>Storage</dt><dd>Local-first (browser localStorage)</dd>
             <dt>Genomic processing</dt><dd>Local-only — no external transmission</dd>
           </dl>
+          <p className="text-muted">Educational simulation software — not for clinical diagnosis or wet-lab protocols. See COPYRIGHT.md and LICENSE.md in the project root.</p>
         </Card>
       </div>
     </div>

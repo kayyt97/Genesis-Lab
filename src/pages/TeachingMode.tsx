@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -6,27 +7,27 @@ import { resolveTiered } from '../content/language';
 import { useLanguage } from '../components/ui/LanguageControl';
 import { useAppState } from '../store/AppContext';
 import { TEACHING_SCENARIOS } from '../data/equipment';
-import { runExperimentalDesignCheck, generateAutoControlEnvironment } from '../services/designCheck';
+import { runActiveExperimentDesignCheck } from '../services/activeExperimentDesignCheck';
 import { defaultEnvironment } from '../data/demoData';
 
 export function TeachingModePage() {
-  const { state } = useAppState();
+  const { state, dispatch } = useAppState();
   const [scenarioId, setScenarioId] = useState(TEACHING_SCENARIOS[0]?.id ?? '');
   const [selected, setSelected] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [showDesignCheck, setShowDesignCheck] = useState(true);
   const languageLevel = useLanguage();
+  const navigate = useNavigate();
 
   const scenario = TEACHING_SCENARIOS.find((s) => s.id === scenarioId);
   const sim = state.activeSimulation;
-  const env = sim?.environment ?? defaultEnvironment;
-  const controlEnv = state.settings.autoControlEnabled
-    ? generateAutoControlEnvironment(defaultEnvironment)
-    : defaultEnvironment;
+  const setup = state.activeExperimentSetup;
+  const env = sim?.environment ?? setup?.environment ?? defaultEnvironment;
+  const controlEnv = setup?.control?.environment ?? defaultEnvironment;
 
   const designChecks = useMemo(
-    () => runExperimentalDesignCheck(env, controlEnv, state.settings.autoControlEnabled, state.settings.replicateCount),
-    [env, controlEnv, state.settings.autoControlEnabled, state.settings.replicateCount],
+    () => runActiveExperimentDesignCheck(setup, env, controlEnv, state.settings.replicateCount),
+    [setup, env, controlEnv, state.settings.replicateCount],
   );
 
   const changedVars = sim
@@ -41,24 +42,31 @@ export function TeachingModePage() {
 
       <Card title="Experimental Design Check (Pre-run)">
         <p className="text-muted">
-          Optional review before running. Genesis teaches rather than blocks — you can always run unusual experiments.
+          Active experiment review — separate from teaching examples below. Genesis teaches rather than blocks — you can always run unusual experiments.
         </p>
         <Button variant="ghost" onClick={() => setShowDesignCheck(!showDesignCheck)}>
           {showDesignCheck ? 'Hide' : 'Show'} Design Check
         </Button>
-        {showDesignCheck && (
-          <ul className="design-check-list">
-            {designChecks.map((c) => (
-              <li key={c.id} className={`design-check design-check-${c.status}`}>
-                {c.status === 'pass' && '✓ '}
-                {c.status === 'warn' && '⚠ '}
-                {c.status === 'info' && '○ '}
-                {c.label}
-                {c.explanation && <span className="design-check-detail"> — {c.explanation}</span>}
-              </li>
-            ))}
-          </ul>
-        )}
+          {showDesignCheck && (
+            <>
+              <ul className="design-check-list">
+                {designChecks.map((c) => (
+                  <li key={c.id} className={`design-check design-check-${c.status}`}>
+                    {c.status === 'pass' && '✓ '}{c.status === 'warn' && '⚠ '}{c.status === 'info' && '○ '}
+                    {c.label}
+                    {c.explanation && <span className="design-check-detail"> — {c.explanation}</span>}
+                  </li>
+                ))}
+              </ul>
+              <div className="teaching-actions">
+                <Button variant="secondary" onClick={() => navigate('/experiment-builder')}>Create Improved Experiment</Button>
+                <Button variant="ghost" onClick={() => navigate('/virtual-lab')}>
+                  Compare With Control{setup?.control?.sampleId ? ` (${setup.control.sampleId})` : ''}
+                </Button>
+                <Button variant="ghost" onClick={() => dispatch({ type: 'UPDATE_SETTINGS', payload: { replicateCount: Math.max(2, state.settings.replicateCount) } })}>Add Replicates</Button>
+              </div>
+            </>
+          )}
         {changedVars.length > 1 && (
           <div className="teaching-prompt warn-text">
             <strong>WHAT CHANGED?</strong> Multiple variables changed simultaneously ({changedVars.join(', ')}).
@@ -91,6 +99,7 @@ export function TeachingModePage() {
 
       {scenario && (
         <Card title={scenario.title}>
+          <span className="learning-topic-badge">LEARNING TOPIC · Example scenario (not necessarily your active experiment)</span>
           <p>{resolveTiered(scenario.description, languageLevel)}</p>
           <div className="teaching-options">
             {scenario.options.map((opt) => (

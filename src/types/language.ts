@@ -9,7 +9,7 @@ export interface TieredText {
 }
 
 export const LANGUAGE_LEVEL_LABELS: Record<LanguageLevel, string> = {
-  simple: 'Simple',
+  simple: 'Basic',
   standard: 'Standard',
   technical: 'Technical',
 };

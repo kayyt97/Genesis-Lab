@@ -1,0 +1,94 @@
+import type { OrganismCatalogueEntry } from '../catalogue/types';
+import type { OrganismSimulationState } from '../types';
+import { organismIndex } from '../catalogue/index';
+
+export interface OrganismSimulationProfile {
+  category: string;
+  optimalTemp: number;
+  optimalPh: number;
+  basePopulation: number;
+  baseViability: number;
+  replicationRate: number;
+  environmentalTolerance: number;
+  morphologyType: string;
+}
+
+const CATEGORY_PROFILES: Record<string, OrganismSimulationProfile> = {
+  bacteria: { category: 'bacteria', optimalTemp: 37, optimalPh: 7, basePopulation: 1_000_000, baseViability: 95, replicationRate: 0.55, environmentalTolerance: 80, morphologyType: 'bacterium' },
+  archaea: { category: 'archaea', optimalTemp: 45, optimalPh: 7, basePopulation: 500_000, baseViability: 85, replicationRate: 0.4, environmentalTolerance: 70, morphologyType: 'archaea' },
+  fungi: { category: 'fungi', optimalTemp: 30, optimalPh: 5.5, basePopulation: 800_000, baseViability: 92, replicationRate: 0.35, environmentalTolerance: 75, morphologyType: 'yeast' },
+  viruses: { category: 'viruses', optimalTemp: 37, optimalPh: 7, basePopulation: 100_000, baseViability: 70, replicationRate: 0.3, environmentalTolerance: 40, morphologyType: 'virus' },
+  parasites: { category: 'parasites', optimalTemp: 37, optimalPh: 7.2, basePopulation: 200_000, baseViability: 75, replicationRate: 0.2, environmentalTolerance: 55, morphologyType: 'parasite' },
+  'mammalian-cells': { category: 'mammalian-cells', optimalTemp: 37, optimalPh: 7.4, basePopulation: 500_000, baseViability: 90, replicationRate: 0.15, environmentalTolerance: 60, morphologyType: 'adherent-cell' },
+  'plant-cells': { category: 'plant-cells', optimalTemp: 25, optimalPh: 6.5, basePopulation: 600_000, baseViability: 88, replicationRate: 0.12, environmentalTolerance: 65, morphologyType: 'plant-cell' },
+  tissues: { category: 'tissues', optimalTemp: 37, optimalPh: 7.4, basePopulation: 300_000, baseViability: 85, replicationRate: 0.08, environmentalTolerance: 55, morphologyType: 'tissue' },
+  proteins: { category: 'proteins', optimalTemp: 25, optimalPh: 7, basePopulation: 1, baseViability: 100, replicationRate: 0, environmentalTolerance: 70, morphologyType: 'protein' },
+  prions: { category: 'prions', optimalTemp: 37, optimalPh: 7, basePopulation: 1000, baseViability: 30, replicationRate: 0.05, environmentalTolerance: 95, morphologyType: 'prion' },
+};
+
+export function getCatalogueEntry(organismId: string): OrganismCatalogueEntry | undefined {
+  return organismIndex.getById(organismId);
+}
+
+export function getSimulationProfile(organismId: string): OrganismSimulationProfile {
+  const entry = getCatalogueEntry(organismId);
+  if (entry) {
+    const base = CATEGORY_PROFILES[entry.category] ?? CATEGORY_PROFILES.bacteria;
+    if (entry.subcategory === 'neuron') {
+      return { ...base, morphologyType: 'neuron', replicationRate: 0.05 };
+    }
+    if (entry.subcategory === 'yeast') {
+      return { ...base, morphologyType: 'yeast' };
+    }
+    if (entry.subcategory === 'cocci' || entry.subcategory === 'gram-positive') {
+      return { ...base, morphologyType: 'coccus' };
+    }
+    if (entry.id === 'ORG-ECOLI' || entry.name.includes('E. coli')) {
+      return { ...CATEGORY_PROFILES.bacteria, replicationRate: 0.6 };
+    }
+    if (entry.id === 'ORG-HELA') {
+      return { ...CATEGORY_PROFILES['mammalian-cells'], morphologyType: 'hela' };
+    }
+    return base;
+  }
+  return legacyProfile(organismId);
+}
+
+function legacyProfile(organismId: string): OrganismSimulationProfile {
+  switch (organismId) {
+    case 'ORG-002': return CATEGORY_PROFILES.viruses;
+    case 'ORG-003': return CATEGORY_PROFILES.fungi;
+    case 'ORG-004': return { ...CATEGORY_PROFILES['mammalian-cells'], morphologyType: 'hela' };
+    case 'ORG-005': return CATEGORY_PROFILES.proteins;
+    case 'ORG-006': return CATEGORY_PROFILES.prions;
+    default: return CATEGORY_PROFILES.bacteria;
+  }
+}
+
+export function createOrganismStateFromProfile(organismId: string): OrganismSimulationState {
+  const p = getSimulationProfile(organismId);
+  return {
+    population: p.basePopulation,
+    viability: p.baseViability,
+    replicationRate: p.replicationRate,
+    stress: p.category === 'prions' ? 50 : p.category === 'viruses' ? 15 : 5,
+    mutationIndicator: p.category === 'viruses' ? 5 : p.category === 'prions' ? 20 : 1,
+    environmentalTolerance: p.environmentalTolerance,
+  };
+}
+
+export function biologicalSystemTypeLabel(category: string): string {
+  const labels: Record<string, string> = {
+    bacteria: 'Organism (bacterium)',
+    archaea: 'Organism (archaeon)',
+    fungi: 'Organism (fungus)',
+    viruses: 'Virus',
+    parasites: 'Parasite',
+    'mammalian-cells': 'Cell culture',
+    'plant-cells': 'Plant cell',
+    tissues: 'Tissue',
+    proteins: 'Protein',
+    prions: 'Prion (reference)',
+  };
+  return labels[category] ?? 'Biological system';
+}

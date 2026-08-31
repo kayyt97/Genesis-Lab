@@ -8,7 +8,7 @@ import { useLanguage } from '../components/ui/LanguageControl';
 import { useAppState } from '../store/AppContext';
 import { explainSimulationResult } from '../services/explanationEngine';
 import { getPathwaysForGene } from '../services/pathwaySearch';
-import { REFERENCE_GENES } from '../data/genes';
+import { GENE_CATALOGUE } from '../catalogue/data/genes';
 import { getReferenceById } from '../data/biologicalLibrary';
 
 export function ResearchAssistantPage() {
@@ -74,12 +74,36 @@ export function ResearchAssistantPage() {
   };
 
   const explainPathwayContext = () => {
-    const gene = REFERENCE_GENES[0];
+    const gene = GENE_CATALOGUE[0];
     const pathways = getPathwaysForGene(gene.id);
     setResponse(
       `Reference example: ${gene.symbol} is linked to ${pathways.length} curated pathway(s).\n` +
       resolveTiered(gene.description, languageLevel) +
       '\n\nPathway interactions shown are reference data with limited coverage. Search Pathway Explorer for specific genes such as HTT.',
+    );
+  };
+
+  const compareControlExperiment = () => {
+    if (!state.settings.autoControlEnabled) {
+      setResponse('Auto-control is off. Enable it in Settings or Virtual Lab to compare experimental and control conditions.');
+      return;
+    }
+    setResponse(
+      'Control vs experimental comparison:\n' +
+      (sim
+        ? `Experimental viability (modelled): ${sim.organismState.viability.toFixed(1)}%\nCompare against control baseline in Virtual Lab.\n\nThis is simulated data — not experimental observation.`
+        : 'No active simulation to compare.'),
+    );
+  };
+
+  const whatToLearnNext = () => {
+    setResponse(
+      'Suggested exploration paths:\n' +
+      '• Change one environmental variable and save a baseline first\n' +
+      '• Search a gene (e.g. HTT) in Genome Explorer\n' +
+      '• Load a tissue reference under Virtual Microscope\n' +
+      '• Search Pathway Explorer for a gene or process\n\n' +
+      'Follow what interests you — Genesis is designed for exploratory learning.',
     );
   };
 
@@ -142,13 +166,15 @@ export function ResearchAssistantPage() {
           <Button variant="secondary" onClick={whyChange}>Why did this change?</Button>
           <Button variant="secondary" onClick={suggestVariable}>What variable should I investigate next?</Button>
           <Button variant="secondary" onClick={explainVirtualLabEnv}>Explain environmental effects</Button>
+          <Button variant="secondary" onClick={compareControlExperiment}>Compare control and experiment</Button>
+          <Button variant="secondary" onClick={whatToLearnNext}>What should I learn about next?</Button>
         </div>
       </Card>
 
       <Card title="Genome / Pathway / Microscope">
         <div className="assistant-actions">
-          <Button variant="secondary" onClick={explainGenomeContext}>Explain genome upload context</Button>
-          <Button variant="secondary" onClick={explainPathwayContext}>Explain pathway context</Button>
+          <Button variant="secondary" onClick={explainGenomeContext}>What does this gene do?</Button>
+          <Button variant="secondary" onClick={explainPathwayContext}>Where does this fit in the pathway?</Button>
           <Button variant="secondary" onClick={explainMicroscopeContext}>Explain microscope observation</Button>
         </div>
       </Card>

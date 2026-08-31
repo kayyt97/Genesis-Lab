@@ -7,6 +7,7 @@ import type {
   DataSourceMeta,
 } from '../types';
 import { seededRange, generateSeed } from '../services/seededRandom';
+import { createOrganismStateFromProfile, getSimulationProfile } from '../services/organismSimulationProfile';
 
 export const SIMULATION_METADATA: DataSourceMeta = {
   sourceType: 'simulation',
@@ -16,58 +17,27 @@ export const SIMULATION_METADATA: DataSourceMeta = {
 };
 
 export function createInitialOrganismState(organismId: string): OrganismSimulationState {
-  const base: OrganismSimulationState = {
-    population: 1_000_000,
-    viability: 95,
-    replicationRate: 0.5,
-    stress: 5,
-    mutationIndicator: 1,
-    environmentalTolerance: 85,
-  };
+  const legacy = legacyOrganismState(organismId);
+  if (legacy) return legacy;
+  return createOrganismStateFromProfile(organismId);
+}
 
+function legacyOrganismState(organismId: string): OrganismSimulationState | null {
   switch (organismId) {
-    case 'ORG-001': // E. coli
-      return { ...base, replicationRate: 0.6, environmentalTolerance: 80 };
-    case 'ORG-002': // Virus
-      return {
-        population: 100_000,
-        viability: 70,
-        replicationRate: 0.3,
-        stress: 15,
-        mutationIndicator: 5,
-        environmentalTolerance: 40,
-      };
-    case 'ORG-003': // Yeast
-      return { ...base, replicationRate: 0.35, environmentalTolerance: 75 };
-    case 'ORG-004': // HeLa
-      return {
-        population: 500_000,
-        viability: 90,
-        replicationRate: 0.15,
-        stress: 10,
-        mutationIndicator: 2,
-        environmentalTolerance: 60,
-      };
-    case 'ORG-005': // GFP protein
-      return {
-        population: 1,
-        viability: 100,
-        replicationRate: 0,
-        stress: 0,
-        mutationIndicator: 0,
-        environmentalTolerance: 70,
-      };
-    case 'ORG-006': // Prion
-      return {
-        population: 1000,
-        viability: 30,
-        replicationRate: 0.05,
-        stress: 50,
-        mutationIndicator: 20,
-        environmentalTolerance: 95,
-      };
+    case 'ORG-001':
+      return { population: 1_000_000, viability: 95, replicationRate: 0.6, stress: 5, mutationIndicator: 1, environmentalTolerance: 80 };
+    case 'ORG-002':
+      return { population: 100_000, viability: 70, replicationRate: 0.3, stress: 15, mutationIndicator: 5, environmentalTolerance: 40 };
+    case 'ORG-003':
+      return { population: 1_000_000, viability: 95, replicationRate: 0.35, stress: 5, mutationIndicator: 1, environmentalTolerance: 75 };
+    case 'ORG-004':
+      return { population: 500_000, viability: 90, replicationRate: 0.15, stress: 10, mutationIndicator: 2, environmentalTolerance: 60 };
+    case 'ORG-005':
+      return { population: 1, viability: 100, replicationRate: 0, stress: 0, mutationIndicator: 0, environmentalTolerance: 70 };
+    case 'ORG-006':
+      return { population: 1000, viability: 30, replicationRate: 0.05, stress: 50, mutationIndicator: 20, environmentalTolerance: 95 };
     default:
-      return base;
+      return null;
   }
 }
 
@@ -103,13 +73,12 @@ function computeEnvironmentalStress(
 ): number {
   let stress = 0;
 
-  // Temperature stress
-  const optimalTemp = organismId === 'ORG-003' ? 30 : organismId === 'ORG-004' ? 37 : 37;
+  const profile = getSimulationProfile(organismId);
+  const optimalTemp = profile.optimalTemp;
   const tempDiff = Math.abs(env.temperature - optimalTemp);
   stress += Math.min(tempDiff / 20, 0.4);
 
-  // pH stress
-  const optimalPh = organismId === 'ORG-003' ? 5.5 : 7.0;
+  const optimalPh = profile.optimalPh;
   const phDiff = Math.abs(env.ph - optimalPh);
   stress += Math.min(phDiff / 4, 0.3);
 

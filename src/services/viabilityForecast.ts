@@ -30,7 +30,7 @@ function computeStress(
     return { stress: 0.5, factors: [{ name: 'Unknown organism preferences', contribution: 0.5 }] };
   }
 
-  const pref = organism.preferredEnvironment;
+  const pref = organism.preferredEnvironment ?? {};
   const factors: { name: string; contribution: number }[] = [];
   let stress = 0;
 
@@ -103,6 +103,7 @@ export function forecastViability(
   }
 
   const { stress, factors } = computeStress(env, organism);
+  const pref = organism.preferredEnvironment ?? {};
   const modelledViability = Math.max(0, Math.min(100, 95 - stress * 85));
   const modelledDieOff = 100 - modelledViability;
   const limitingFactors = factors.slice(0, 3).map((f) => f.name);
@@ -131,7 +132,7 @@ export function forecastViability(
       level: 'model-derived',
       note: 'Predicted survival under current parameters — educational prototype model',
     },
-    confidence: organism.preferredEnvironment.temperature !== undefined ? 'moderate' : 'low',
+    confidence: pref.temperature !== undefined ? 'moderate' : 'low',
   };
 }
 

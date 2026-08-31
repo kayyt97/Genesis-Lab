@@ -24,13 +24,21 @@ export const EVIDENCE_LABELS: Record<EvidenceLevel, string> = {
   'insufficient-information': 'Insufficient Information',
 };
 
+export type WorkspaceProvenanceClass =
+  | 'reference'
+  | 'demo'
+  | 'user-uploaded'
+  | 'user-created'
+  | 'model-generated';
+
 export type DataProvenance =
   | 'real-user-data'
   | 'reference-information'
   | 'model-input'
   | 'model-output'
   | 'assumption'
-  | 'speculation';
+  | 'speculation'
+  | WorkspaceProvenanceClass;
 
 export const PROVENANCE_LABELS: Record<DataProvenance, string> = {
   'real-user-data': 'Real User Data',
@@ -39,4 +47,9 @@ export const PROVENANCE_LABELS: Record<DataProvenance, string> = {
   'model-output': 'Model Output',
   assumption: 'Assumption',
   speculation: 'Speculation',
+  reference: 'Reference',
+  demo: 'Demo',
+  'user-uploaded': 'User Uploaded',
+  'user-created': 'User Created',
+  'model-generated': 'Model Generated',
 };

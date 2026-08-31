@@ -1,6 +1,6 @@
-import type { GlossaryEntry } from '../types';
+import type { GlossaryEntry, GlossaryCategory } from '../types';
 
-export const glossaryEntries: GlossaryEntry[] = [
+const RAW_GLOSSARY: Omit<GlossaryEntry, 'categories'>[] = [
   {
     id: 'ph',
     term: 'pH',
@@ -362,24 +362,71 @@ export const glossaryEntries: GlossaryEntry[] = [
   },
 ];
 
-export function findGlossaryEntry(term: string): GlossaryEntry | undefined {
-  const normalized = term.toLowerCase().trim();
-  return glossaryEntries.find(
-    (e) =>
-      e.term.toLowerCase() === normalized ||
-      e.id === normalized ||
-      e.term.toLowerCase().replace(/\s+/g, '-') === normalized,
-  );
-}
+const CATEGORY_MAP: Record<string, GlossaryCategory[]> = {
+  ph: ['chemistry', 'measurements'],
+  molarity: ['chemistry', 'measurements'],
+  concentration: ['chemistry', 'measurements'],
+  temperature: ['measurements', 'experiments'],
+  pressure: ['measurements', 'experiments'],
+  salinity: ['chemistry', 'measurements'],
+  incubation: ['experiments', 'biology'],
+  culture: ['biology', 'experiments'],
+  medium: ['biology', 'chemistry'],
+  control: ['experiments'],
+  variable: ['experiments'],
+  'independent-variable': ['experiments'],
+  'dependent-variable': ['experiments'],
+  replication: ['biology', 'experiments'],
+  mutation: ['genetics', 'biology'],
+  viability: ['biology', 'measurements', 'results'],
+  pathogen: ['biology', 'safety'],
+  bacteria: ['biology'],
+  virus: ['biology'],
+  fungus: ['biology'],
+  cell: ['biology'],
+  protein: ['biology', 'chemistry'],
+  dna: ['genetics'],
+  rna: ['genetics'],
+  prion: ['biology', 'safety'],
+  compound: ['chemistry'],
+  molecule: ['chemistry'],
+  atom: ['atomic'],
+  inhibition: ['chemistry', 'biology'],
+  activation: ['chemistry', 'biology'],
+  dose: ['experiments', 'measurements'],
+  exposure: ['experiments', 'safety'],
+  hypothesis: ['experiments'],
+  observation: ['experiments', 'results'],
+  result: ['results'],
+};
 
-export function searchGlossary(query: string): GlossaryEntry[] {
-  const q = query.toLowerCase().trim();
-  if (!q) return glossaryEntries;
-  return glossaryEntries.filter(
-    (e) =>
-      e.term.toLowerCase().includes(q) ||
-      e.plainEnglish.toLowerCase().includes(q) ||
-      e.scientificDefinition.toLowerCase().includes(q) ||
-      e.relatedTerms.some((t) => t.toLowerCase().includes(q)),
-  );
-}
+const PHASE5_TERMS: GlossaryEntry[] = [
+  { id: 'atomic-number', term: 'Atomic number', categories: ['atomic'], plainEnglish: 'The number of protons in an atom\'s nucleus — it defines which element it is.', scientificDefinition: 'The number of protons (Z) in the nucleus of an atom; uniquely identifies a chemical element.', unit: 'Dimensionless (proton count)', example: 'Carbon has atomic number 6.', appearsIn: ['Atomic Lab'], relatedTerms: ['atom', 'proton', 'electron'] },
+  { id: 'atomic-mass', term: 'Atomic mass', categories: ['atomic', 'measurements'], plainEnglish: 'The average mass of an element\'s atoms, usually shown on the periodic table.', scientificDefinition: 'Weighted average mass of an element\'s isotopes relative to carbon-12, expressed in unified atomic mass units (u).', unit: 'u (unified atomic mass units)', example: 'Carbon has an atomic mass of about 12 u.', appearsIn: ['Atomic Lab'], relatedTerms: ['isotope', 'mass-number'] },
+  { id: 'proton', term: 'Proton', categories: ['atomic'], plainEnglish: 'A positively charged particle in the atom nucleus.', scientificDefinition: 'Subatomic particle with charge +1e and mass ≈1 u found in the atomic nucleus.', example: 'Hydrogen has one proton.', appearsIn: ['Atomic Lab'], relatedTerms: ['neutron', 'atomic-number'] },
+  { id: 'neutron', term: 'Neutron', categories: ['atomic'], plainEnglish: 'A neutral particle in the nucleus; changing neutrons makes different isotopes.', scientificDefinition: 'Uncharged nucleon in the atomic nucleus; neutron number with proton number defines the nuclide.', example: 'Carbon-12 and carbon-14 differ by neutrons.', appearsIn: ['Atomic Lab'], relatedTerms: ['isotope', 'proton'] },
+  { id: 'electron', term: 'Electron', categories: ['atomic'], plainEnglish: 'Tiny negatively charged particles that orbit the nucleus and form bonds.', scientificDefinition: 'Lepton with charge −1e occupying atomic orbitals; number equals protons in a neutral atom.', example: 'A sodium ion forms when an electron is lost.', appearsIn: ['Atomic Lab'], relatedTerms: ['ion', 'electron-configuration'] },
+  { id: 'isotope', term: 'Isotope', categories: ['atomic'], plainEnglish: 'Atoms of the same element with different numbers of neutrons.', scientificDefinition: 'Nuclides sharing the same atomic number (Z) but differing in neutron number (N) or mass number (A).', example: 'Tritium is a hydrogen isotope with two neutrons.', appearsIn: ['Atomic Lab'], relatedTerms: ['neutron', 'half-life'] },
+  { id: 'nuclear-stability', term: 'Nuclear stability', categories: ['atomic'], plainEnglish: 'Whether an atom\'s nucleus stays together or tends to decay.', scientificDefinition: 'Propensity of a nuclide to remain intact versus undergoing radioactive decay, governed by binding energy and neutron-proton ratio.', example: 'Radon-222 is unstable and decays to polonium-218.', appearsIn: ['Atomic Lab'], relatedTerms: ['radioactive', 'half-life'] },
+  { id: 'radioactive', term: 'Radioactive', categories: ['atomic', 'safety'], plainEnglish: 'Unstable atoms that release radiation as they decay into other forms.', scientificDefinition: 'Exhibiting spontaneous nuclear decay with emission of ionizing radiation or particles.', example: 'Carbon-14 is radioactive and used in dating reference models.', appearsIn: ['Atomic Lab'], relatedTerms: ['half-life', 'decay-mode'] },
+  { id: 'half-life', term: 'Half-life', categories: ['atomic', 'measurements'], plainEnglish: 'The time for half of a radioactive sample to decay.', scientificDefinition: 'Time required for half of the atoms in a radionuclide sample to undergo decay.', unit: 'seconds to years (isotope-dependent)', example: 'Radon-222 has a half-life of about 3.8 days.', appearsIn: ['Atomic Lab'], relatedTerms: ['radioactive', 'decay-mode'] },
+  { id: 'decay-mode', term: 'Decay mode', categories: ['atomic'], plainEnglish: 'The main way an unstable nucleus breaks apart or transforms.', scientificDefinition: 'Primary nuclear transformation pathway (e.g. alpha, beta, gamma) by which a radionuclide decays.', example: 'Uranium-238 primarily undergoes alpha decay.', appearsIn: ['Atomic Lab'], relatedTerms: ['alpha-decay', 'beta-decay'] },
+  { id: 'alpha-decay', term: 'Alpha decay', categories: ['atomic'], plainEnglish: 'Decay that releases a helium nucleus (two protons and two neutrons).', scientificDefinition: 'Radioactive decay emitting an alpha particle (⁴He nucleus), reducing Z by 2 and A by 4.', example: 'Radium-226 decays by alpha emission to radon-222.', appearsIn: ['Atomic Lab'], relatedTerms: ['decay-mode', 'daughter-nuclide'] },
+  { id: 'beta-decay', term: 'Beta decay', categories: ['atomic'], plainEnglish: 'Decay that changes a neutron into a proton or vice versa, releasing an electron or positron.', scientificDefinition: 'Nuclear decay involving beta particle emission or electron capture, altering neutron-proton ratio.', example: 'Tritium undergoes beta decay to helium-3.', appearsIn: ['Atomic Lab'], relatedTerms: ['decay-mode', 'daughter-nuclide'] },
+  { id: 'daughter-nuclide', term: 'Daughter nuclide', categories: ['atomic'], plainEnglish: 'The new atom formed after radioactive decay.', scientificDefinition: 'Nuclide produced following radioactive decay of a parent radionuclide.', example: 'Polonium-218 is a daughter nuclide of radon-222 alpha decay.', appearsIn: ['Atomic Lab'], relatedTerms: ['decay-mode', 'half-life'] },
+  { id: 'ion', term: 'Ion', categories: ['atomic', 'chemistry'], plainEnglish: 'An atom or molecule with an electric charge because it gained or lost electrons.', scientificDefinition: 'Atom or molecule with net electric charge due to electron loss (cation) or gain (anion).', example: 'Na⁺ and Cl⁻ ions form when sodium chloride dissolves.', appearsIn: ['Atomic Lab', 'Molecule Explorer'], relatedTerms: ['ionic-charge', 'electron'] },
+  { id: 'ionic-charge', term: 'Ionic charge', categories: ['atomic', 'chemistry'], plainEnglish: 'The plus or minus charge on an ion.', scientificDefinition: 'Net electric charge on an ion, typically expressed as multiples of elementary charge.', unit: 'e (elementary charge units)', example: 'A +2 charge means two electrons were lost.', appearsIn: ['Atomic Lab'], relatedTerms: ['ion', 'electron'] },
+  { id: 'electron-configuration', term: 'Electron configuration', categories: ['atomic'], plainEnglish: 'How electrons are arranged in shells around the nucleus.', scientificDefinition: 'Distribution of electrons among atomic orbitals according to aufbau and Pauli principles.', example: 'Carbon reference configuration: 1s² 2s² 2p² (simplified).', appearsIn: ['Atomic Lab'], relatedTerms: ['electron', 'energy-state'] },
+  { id: 'energy-state', term: 'Energy state', categories: ['atomic'], plainEnglish: 'The energy level electrons occupy in an atom.', scientificDefinition: 'Quantum state of electrons in an atom or ion, often described by principal and azimuthal quantum numbers.', example: 'Excited electrons can move to higher energy states.', appearsIn: ['Atomic Lab'], relatedTerms: ['electron-configuration', 'electron'] },
+  { id: 'replicate', term: 'Replicate', categories: ['experiments'], plainEnglish: 'Repeating the same experiment to check reliability.', scientificDefinition: 'Independent repetition of an experimental condition to assess variability and reproducibility.', example: 'Three replicate dishes improve confidence in viability trends.', appearsIn: ['Virtual Lab', 'Experiment Builder'], relatedTerms: ['control', 'variable'] },
+  { id: 'sample', term: 'Sample', categories: ['experiments', 'biology'], plainEnglish: 'The material you study in an experiment.', scientificDefinition: 'Specimen or biological material selected for experimental measurement or simulation.', example: 'SAMPLE-001 might label an E. coli culture under test.', appearsIn: ['Virtual Lab', 'Samples'], relatedTerms: ['culture', 'control'] },
+  { id: 'model-derived-result', term: 'Model-derived result', categories: ['results'], plainEnglish: 'An outcome calculated by Genesis Lab\'s simulation model, not measured in a real lab.', scientificDefinition: 'Output generated by the educational simulation engine from parameterised rules and inputs.', example: 'Predicted viability after 24 h is model-derived.', appearsIn: ['Virtual Lab', 'Results'], relatedTerms: ['simulation', 'result'] },
+  { id: 'simulation', term: 'Simulation', categories: ['experiments', 'results'], plainEnglish: 'A computer model that mimics simplified lab behaviour for learning.', scientificDefinition: 'Computational representation applying simplified rules to explore hypothetical experimental outcomes.', example: 'Virtual Lab runs a time-stepped growth simulation.', appearsIn: ['Virtual Lab'], relatedTerms: ['model-derived-result', 'viability'] },
+  { id: 'treatment', term: 'Treatment', categories: ['experiments'], plainEnglish: 'A deliberate change applied to the experimental group.', scientificDefinition: 'Experimental manipulation or agent applied to test conditions but withheld from the control.', example: 'Adding a compound as a treatment while the control receives none.', appearsIn: ['Virtual Lab', 'Experiment Builder'], relatedTerms: ['control', 'analyte'] },
+  { id: 'analyte', term: 'Analyte', categories: ['experiments', 'measurements'], plainEnglish: 'The substance you measure or track in an experiment.', scientificDefinition: 'Component of interest subjected to measurement or detection in an assay or simulation.', example: 'Glucose may be tracked as an analyte in a metabolic model.', appearsIn: ['Virtual Lab', 'Molecule Explorer'], relatedTerms: ['compound', 'concentration'] },
+];
+
+export const glossaryEntries: GlossaryEntry[] = [
+  ...RAW_GLOSSARY.map((e) => ({ ...e, categories: CATEGORY_MAP[e.id] ?? ['biology'] })),
+  ...PHASE5_TERMS,
+];

@@ -1,5 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
+import { AppFooter } from './AppFooter';
 import { DisclaimerBanner } from '../ui/DisclaimerBanner';
 import { LanguageControl } from '../ui/LanguageControl';
 import { useAppState } from '../../store/AppContext';
@@ -19,6 +20,7 @@ export function AppLayout() {
         <div className="page-container">
           <Outlet />
         </div>
+        <AppFooter />
       </main>
     </div>
   );

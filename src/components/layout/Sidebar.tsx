@@ -52,7 +52,7 @@ export function Sidebar({ currentPath }: SidebarProps) {
         ))}
       </nav>
       <div className="sidebar-footer">
-        <span className="version-tag">Phase 2 · Expanded</span>
+        <span className="version-tag">Phase 4 · Depth</span>
       </div>
     </aside>
   );

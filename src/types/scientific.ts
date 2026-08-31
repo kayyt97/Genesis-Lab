@@ -217,6 +217,8 @@ export interface LabHandoffPayload {
   entityId: string;
   label: string;
   timestamp: string;
+  moleculeRole?: import('./experimentWorkspace').MoleculeTransferRole;
+  formula?: string;
 }
 
 export interface TeachingScenario {

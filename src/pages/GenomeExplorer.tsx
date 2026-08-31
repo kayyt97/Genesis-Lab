@@ -1,62 +1,123 @@
-import { useState, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useRef, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { EvidenceBadge, ObservedMarker, ProvenanceBadge } from '../components/ui/EvidenceBadge';
-import { DnaHelixViewer } from '../components/genome/DnaHelixViewer';
+import { EntityActions } from '../components/ui/EntityActions';
+import { GenomeBrowserView } from '../components/genome/GenomeBrowserView';
 import { resolveTiered } from '../content/language';
 import { GENOME_PRIVACY_NOTICE, GENOME_NOT_DIAGNOSIS } from '../content/language';
 import { useLanguage } from '../components/ui/LanguageControl';
 import { useAppState } from '../store/AppContext';
 import { parseGenomeFile, createSimulationCopy } from '../services/genomeParser';
 import { getChromosomeVariants } from '../services/chromosomeUtils';
-import { CHROMOSOMES, REFERENCE_GENES, findVariantsInGene } from '../data/genes';
+import { searchGenomeNavigation, getGeneBySymbol } from '../services/genomeNavigation';
+import { getGeneBySymbol as getCanonicalGene, imprintingNoteForGene } from '../services/geneReferenceService';
+import { CHROMOSOMES, findVariantsInGene } from '../data/genes';
+import { geneIndex, GENE_CATALOGUE } from '../catalogue/index';
+import { filterUploadedVariants } from '../services/variantFilter';
+import { getGenotypeNotationHelp } from '../services/genotypeNotation';
+import { assessDataQualitySignals } from '../services/dataQualitySignalService';
 import type { GenomicVariant } from '../types/scientific';
+import type { EntityActionContext } from '../services/moduleActions';
 
 export function GenomeExplorerPage() {
   const { state, dispatch } = useAppState();
   const languageLevel = useLanguage();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const fileRef = useRef<HTMLInputElement>(null);
   const [selectedChr, setSelectedChr] = useState('17');
-  const [selectedGeneId, setSelectedGeneId] = useState(REFERENCE_GENES[0]?.id ?? '');
-  const [geneSearch, setGeneSearch] = useState('');
+  const [selectedGeneId, setSelectedGeneId] = useState(GENE_CATALOGUE[0]?.id ?? '');
+  const [searchQuery, setSearchQuery] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [simCopyName, setSimCopyName] = useState('Simulation Copy');
-  const [viewMode, setViewMode] = useState<'reference' | 'uploaded'>('uploaded');
+  const [viewMode, setViewMode] = useState<'reference' | 'uploaded'>('reference');
+  const [genePage, setGenePage] = useState(1);
+  const [variantFilterQuery, setVariantFilterQuery] = useState('');
+  const [showQualityDetails, setShowQualityDetails] = useState(false);
+  const [navEpoch, setNavEpoch] = useState(0);
 
   const upload = state.genomeUpload;
-  const selectedGene = REFERENCE_GENES.find((g) => g.id === selectedGeneId);
-  const geneVariants = upload && selectedGene
-    ? findVariantsInGene(selectedGene.id, upload.variants)
-    : [];
+  const selectedGene = geneIndex.getById(selectedGeneId) ?? null;
+  const actionCtx: EntityActionContext = { dispatch, navigate };
 
-  const chrVariants = upload ? getChromosomeVariants(upload.variants, selectedChr) : [];
+  const searchResults = useMemo(
+    () => searchGenomeNavigation(searchQuery, upload?.variants ?? []),
+    [searchQuery, upload?.variants],
+  );
 
   const chrCounts = useMemo(() => {
     if (!upload) return {} as Record<string, number>;
-    if (upload.importReport?.chromosomeCoverage) {
-      return upload.importReport.chromosomeCoverage;
-    }
+    if (upload.importReport?.chromosomeCoverage) return upload.importReport.chromosomeCoverage;
     const counts: Record<string, number> = {};
-    for (const chr of CHROMOSOMES) {
-      counts[chr.id] = getChromosomeVariants(upload.variants, chr.id).length;
-    }
+    for (const chr of CHROMOSOMES) counts[chr.id] = getChromosomeVariants(upload.variants, chr.id).length;
     return counts;
   }, [upload]);
 
-  const geneSearchResults = useMemo(() => {
-    const q = geneSearch.trim().toLowerCase();
-    if (!q) return [];
-    return REFERENCE_GENES.filter(
-      (g) =>
-        g.symbol.toLowerCase().includes(q) ||
-        g.name.toLowerCase().includes(q) ||
-        g.id.toLowerCase().includes(q),
-    );
-  }, [geneSearch]);
+  const chrVariants = upload ? getChromosomeVariants(upload.variants, selectedChr) : [];
+  const filteredVariants = useMemo(
+    () => filterUploadedVariants(chrVariants, variantFilterQuery),
+    [chrVariants, variantFilterQuery],
+  );
+  const qualityAssessment = useMemo(
+    () => (upload ? assessDataQualitySignals(upload) : null),
+    [upload],
+  );
+  const geneVariants = upload && selectedGene ? findVariantsInGene(selectedGene.id, upload.variants) : [];
+
+  const geneListPage = useMemo(
+    () => geneIndex.query({ search: searchQuery.length > 2 ? '' : undefined, page: genePage, pageSize: 20, sortBy: 'name' }),
+    [genePage, searchQuery],
+  );
+
+  useEffect(() => {
+    const geneParam = searchParams.get('gene');
+    if (geneParam) {
+      const g = getCanonicalGene(geneParam) ?? getGeneBySymbol(geneParam);
+      if (g) applyNavigation({ geneId: g.id, chromosome: g.chromosome });
+    }
+  }, [searchParams]);
+
+  const applyNavigation = (target: { geneId?: string; chromosome?: string; view?: 'reference' | 'uploaded'; variantFilter?: string }) => {
+    if (target.chromosome) setSelectedChr(target.chromosome);
+    if (target.geneId !== undefined) {
+      setSelectedGeneId(target.geneId);
+      const g = geneIndex.getById(target.geneId);
+      if (g) {
+        const idx = GENE_CATALOGUE.findIndex((entry) => entry.id === g.id);
+        if (idx >= 0) setGenePage(Math.floor(idx / 20) + 1);
+      }
+    }
+    if (target.view) setViewMode(target.view);
+    if (target.variantFilter !== undefined) setVariantFilterQuery(target.variantFilter);
+    setSearchQuery('');
+    setNavEpoch((n) => n + 1);
+  };
+
+  const navigateToGene = (geneId: string, chr?: string) => {
+    const g = geneIndex.getById(geneId);
+    applyNavigation({ geneId, chromosome: g?.chromosome ?? chr ?? selectedChr });
+  };
+
+  const handleSearchSelect = (result: ReturnType<typeof searchGenomeNavigation>[0]) => {
+    if (result.target.type === 'gene' && result.target.geneId) {
+      navigateToGene(result.target.geneId, result.target.chromosome);
+    } else if (result.target.type === 'chromosome' && result.target.chromosome) {
+      applyNavigation({ geneId: '', chromosome: result.target.chromosome });
+    } else if (result.target.type === 'cytoband' && result.target.chromosome) {
+      applyNavigation({ geneId: '', chromosome: result.target.chromosome });
+    } else if (result.target.type === 'variant' && result.target.chromosome) {
+      applyNavigation({
+        geneId: '',
+        chromosome: result.target.chromosome,
+        view: 'uploaded',
+        variantFilter: result.target.label?.startsWith('rs') ? result.target.label : String(result.target.position ?? ''),
+      });
+    }
+  };
 
   const handleUpload = async (file: File) => {
     setLoading(true);
@@ -68,90 +129,59 @@ export function GenomeExplorerPage() {
       return;
     }
     dispatch({ type: 'SET_GENOME_UPLOAD', payload: result.upload });
-  };
-
-  const jumpToGene = (geneId: string) => {
-    const gene = REFERENCE_GENES.find((g) => g.id === geneId);
-    if (!gene) return;
-    setSelectedGeneId(geneId);
-    setSelectedChr(gene.chromosome);
-    setGeneSearch('');
-  };
-
-  const createSimCopy = () => {
-    if (!upload) return;
-    const copy = createSimulationCopy(upload, simCopyName);
-    dispatch({ type: 'ADD_GENOME_SIM_COPY', payload: copy });
-  };
-
-  const toggleVariantInCopy = (copyId: string, variantId: string, altGenotype: string) => {
-    const copy = state.genomeSimulationCopies.find((c) => c.id === copyId);
-    if (!copy) return;
-    const updated: typeof copy = {
-      ...copy,
-      variants: copy.variants.map((v) =>
-        v.id === variantId
-          ? { ...v, genotype: altGenotype, observationStatus: 'observed' as const }
-          : v,
-      ),
-      editedVariantIds: copy.editedVariantIds.includes(variantId)
-        ? copy.editedVariantIds
-        : [...copy.editedVariantIds, variantId],
-    };
-    dispatch({ type: 'UPDATE_GENOME_SIM_COPY', payload: updated });
+    setViewMode('uploaded');
   };
 
   const report = upload?.importReport;
 
   return (
     <div className="genome-page">
-      <PageHeader
-        title="Genome Explorer"
-        subtitle="Local genotype visualisation — not clinical diagnosis"
-        actions={<ProvenanceBadge provenance="real-user-data" />}
-      />
+      <PageHeader title="Genome Explorer" subtitle="Educational genome browser — not clinical diagnosis" actions={<ProvenanceBadge provenance="real-user-data" />} />
 
       <div className="genome-notices">
         <p>{resolveTiered(GENOME_PRIVACY_NOTICE, languageLevel)}</p>
         <p>{resolveTiered(GENOME_NOT_DIAGNOSIS, languageLevel)}</p>
       </div>
 
-      <Card title="Upload Genotype File (Local Processing Only)">
+      <Card title="Genome Search & Navigation">
         <input
-          ref={fileRef}
-          type="file"
-          accept=".txt,.csv,.vcf,.tsv"
-          className="file-input"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) handleUpload(f);
+          type="search"
+          className="search-input"
+          placeholder="Gene (HTT), chromosome (chr4), cytoband (11p15.5), or rsID…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && searchResults.length === 1) {
+              e.preventDefault();
+              handleSearchSelect(searchResults[0]);
+            }
           }}
         />
+        {searchResults.length > 0 && (
+          <ul className="search-results">
+            {searchResults.slice(0, 12).map((r, i) => (
+              <li key={i}>
+                <button type="button" className="search-result-btn" onClick={() => handleSearchSelect(r)}>
+                  <span className="search-result-type">{r.matchType}</span> {r.detail}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {searchQuery.trim() && searchResults.length === 0 && (
+          <p className="text-muted">No matching gene, chromosome, cytoband, or uploaded variant. Try TP53, chr17, or 17p13.1.</p>
+        )}
+      </Card>
+
+      <Card title="Upload Genotype File (Local Processing Only)">
+        <input ref={fileRef} type="file" accept=".txt,.csv,.vcf,.tsv" className="file-input" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} />
         {loading && <p className="text-muted">Parsing locally…</p>}
         {parseError && <p className="error-text">{parseError}</p>}
         {upload && (
           <div className="upload-summary">
             <EvidenceBadge level="established" note="User uploaded file" />
-            <p>
-              <strong>{upload.fileName}</strong> — {upload.variantCount.toLocaleString()} variants parsed
-              ({upload.sourceFormat}). Processed locally; not transmitted externally.
-            </p>
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={upload.isPersisted}
-                onChange={() =>
-                  dispatch({
-                    type: 'SET_GENOME_UPLOAD',
-                    payload: { ...upload, isPersisted: !upload.isPersisted },
-                  })
-                }
-              />
-              Save in local project storage (optional)
-            </label>
-            <Button variant="secondary" onClick={() => dispatch({ type: 'SET_GENOME_UPLOAD', payload: null })}>
-              Clear uploaded data
-            </Button>
+            <p><strong>{upload.fileName}</strong> — {upload.variantCount.toLocaleString()} variants ({upload.sourceFormat}). Local only.</p>
+            <Button variant="secondary" onClick={() => dispatch({ type: 'SET_GENOME_UPLOAD', payload: null })}>Clear uploaded data</Button>
           </div>
         )}
       </Card>
@@ -159,216 +189,201 @@ export function GenomeExplorerPage() {
       {report && (
         <Card title="Import Quality Report">
           <dl className="detail-dl import-report-dl">
-            <dt>Total rows read</dt><dd>{report.totalRowsRead.toLocaleString()}</dd>
-            <dt>Successfully parsed</dt><dd>{report.successfullyParsed.toLocaleString()}</dd>
+            <dt>Total records</dt><dd>{report.totalRowsRead.toLocaleString()}</dd>
+            <dt>Parsed</dt><dd>{report.successfullyParsed.toLocaleString()}</dd>
             <dt>Chromosome-assigned</dt><dd>{report.chromosomeAssigned.toLocaleString()}</dd>
-            <dt>Unsupported / unmapped</dt><dd>{report.unsupportedUnmapped.toLocaleString()}</dd>
-            <dt>Malformed / skipped</dt><dd>{report.malformedSkipped.toLocaleString()}</dd>
-            <dt>Detected genome build</dt><dd>{report.detectedBuild}</dd>
+            <dt>Skipped/invalid</dt><dd>{(report.malformedSkipped + report.unsupportedUnmapped).toLocaleString()}</dd>
+            <dt>Genome build</dt><dd>{report.detectedBuild}</dd>
           </dl>
-          {report.exclusionReasons.length > 0 && (
-            <>
-              <h4>Exclusion reasons</h4>
-              <ul className="exclusion-list">
-                {report.exclusionReasons.map((r) => (
-                  <li key={r.reason}>{r.reason}: {r.count.toLocaleString()}</li>
-                ))}
-              </ul>
-            </>
-          )}
-          <p className="text-muted">
-            Chromosome totals should reconcile with assigned records. Unassigned records are listed above with reasons.
-          </p>
+          <h4>Variant count by chromosome</h4>
+          <div className="chr-count-grid">
+            {CHROMOSOMES.map((c) => (
+              <span key={c.id} className="chr-count-pill">{c.label}: {(chrCounts[c.id] ?? 0).toLocaleString()}</span>
+            ))}
+          </div>
         </Card>
       )}
 
-      <Card title="Interactive Genome Visualisation">
-        <div className="genome-view-toggle">
-          <button type="button" className={`category-tab ${viewMode === 'reference' ? 'active' : ''}`} onClick={() => setViewMode('reference')}>
-            Reference
+      {upload && qualityAssessment && (
+        <Card title="Potential signals / data quality">
+          <p className="structural-summary">{qualityAssessment.summaryLabel}</p>
+          <p className="text-muted">{qualityAssessment.limitations}</p>
+          <button type="button" className="link-btn" onClick={() => setShowQualityDetails((v) => !v)}>
+            {showQualityDetails ? 'Hide details' : 'Evidence / details'}
           </button>
-          <button type="button" className={`category-tab ${viewMode === 'uploaded' ? 'active' : ''}`} onClick={() => setViewMode('uploaded')} disabled={!upload}>
-            Uploaded sample
-          </button>
-        </div>
-        <DnaHelixViewer
-          variants={viewMode === 'uploaded' && upload ? upload.variants : []}
-          selectedGeneId={selectedGeneId}
-          onSelectGene={jumpToGene}
-          highlightChromosome={selectedChr}
-        />
-        <p className="text-muted">
-          Navigate: Genome → Chromosome → Region → Gene → Variant. Sequence differences appear as markers, not helix deformation.
-        </p>
-      </Card>
+          {showQualityDetails && (
+            <div className="structural-details">
+              {qualityAssessment.signals.length === 0 ? (
+                <p className="text-muted">No potential data-quality signals flagged from this dataset.</p>
+              ) : (
+                <ul>
+                  {qualityAssessment.signals.map((s) => (
+                    <li key={s.id}>
+                      <strong>{s.label}</strong> — {s.observation}
+                      <br />
+                      <span className="text-muted">{s.disclaimer}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
 
-      <Card title="Search Genes">
-        <input
-          type="search"
-          className="search-input"
-          placeholder="Search e.g. HTT, BRCA1, CFTR…"
-          value={geneSearch}
-          onChange={(e) => setGeneSearch(e.target.value)}
+      <Card title="Interactive Genome Browser">
+        <div className="genome-view-toggle">
+          <button type="button" className={`category-tab ${viewMode === 'reference' ? 'active' : ''}`} onClick={() => setViewMode('reference')}>Reference</button>
+          <button type="button" className={`category-tab ${viewMode === 'uploaded' ? 'active' : ''}`} onClick={() => setViewMode('uploaded')} disabled={!upload}>Uploaded sample overlay</button>
+        </div>
+        <GenomeBrowserView
+          key={`${selectedGeneId}-${selectedChr}-${navEpoch}`}
+          variants={viewMode === 'uploaded' && upload ? upload.variants : []}
+          selectedGene={selectedGene}
+          chromosome={selectedChr}
+          viewMode={viewMode}
+          navigationTarget={selectedGene ? { type: 'gene', chromosome: selectedGene.chromosome, geneId: selectedGene.id, geneSymbol: selectedGene.symbol, label: selectedGene.symbol } : { type: 'chromosome', chromosome: selectedChr, label: `Chr ${selectedChr}` }}
         />
-        {geneSearchResults.length > 0 && (
-          <ul className="search-results">
-            {geneSearchResults.map((g) => (
-              <li key={g.id}>
-                <button type="button" className="search-result-btn" onClick={() => jumpToGene(g.id)}>
-                  {g.symbol} — Chr {g.chromosome}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {geneSearch.trim() && geneSearchResults.length === 0 && (
-          <p className="text-muted">No reference genes match. Only curated reference genes are searchable.</p>
+        <p className="text-muted">Conceptual visualisation — consumer genotype files contain sampled variants, not a complete genome sequence. Unobserved regions remain reference context.</p>
+        {selectedGene && (
+          <>
+            <Button variant="secondary" onClick={() => navigateToGene(selectedGene.id, selectedGene.chromosome)}>Centre on {selectedGene.symbol}</Button>
+            <EntityActions ctx={actionCtx} gene={selectedGene} />
+          </>
         )}
       </Card>
 
       <div className="genome-layout">
         <Card title="Chromosomes">
           <div className="chr-grid">
-            {CHROMOSOMES.map((chr) => {
-              const count = chrCounts[chr.id] ?? 0;
-              return (
-                <button
-                  key={chr.id}
-                  type="button"
-                  className={`chr-btn ${selectedChr === chr.id ? 'active' : ''}`}
-                  onClick={() => setSelectedChr(chr.id)}
-                >
-                  {chr.label}
-                  {upload && <span className="chr-count">{count.toLocaleString()}</span>}
-                </button>
-              );
-            })}
+            {CHROMOSOMES.map((chr) => (
+              <button key={chr.id} type="button" className={`chr-btn ${selectedChr === chr.id ? 'active' : ''}`} onClick={() => applyNavigation({ geneId: '', chromosome: chr.id })}>
+                {chr.label}
+                {upload && <span className="chr-count">{(chrCounts[chr.id] ?? 0).toLocaleString()}</span>}
+              </button>
+            ))}
           </div>
-          {!upload && (
-            <p className="text-muted">Upload data to see variant markers. Reference chromosome map shown.</p>
-          )}
         </Card>
 
         <Card title={`Variants on Chr ${selectedChr}`}>
-          {!upload ? (
-            <p className="text-muted">No uploaded data — variants cannot be displayed.</p>
-          ) : chrVariants.length === 0 ? (
-            <p className="text-muted">No observed variants on this chromosome in uploaded file.</p>
-          ) : (
-            <div className="variant-table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Position</th>
-                    <th>rsID</th>
-                    <th>Genotype</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {chrVariants.slice(0, 50).map((v) => (
-                    <VariantRow key={v.id} variant={v} />
-                  ))}
-                </tbody>
-              </table>
-              {chrVariants.length > 50 && (
-                <p className="text-muted">Showing first 50 of {chrVariants.length.toLocaleString()} variants.</p>
-              )}
-            </div>
-          )}
+          {!upload ? <p className="text-muted">Upload data to see variant markers.</p>
+            : chrVariants.length === 0 ? <p className="text-muted">No variants on this chromosome in uploaded file.</p>
+            : (
+              <>
+                <div className="variant-filter-row">
+                  <input
+                    type="search"
+                    className="search-input compact"
+                    placeholder="Filter: position, range, rsID, genotype…"
+                    value={variantFilterQuery}
+                    onChange={(e) => setVariantFilterQuery(e.target.value)}
+                  />
+                  {variantFilterQuery && (
+                    <button type="button" className="filter-btn" onClick={() => setVariantFilterQuery('')}>Clear</button>
+                  )}
+                </div>
+                {filteredVariants.message && <p className="text-muted">{filteredVariants.message}</p>}
+                <VariantTable
+                  variants={filteredVariants.variants.slice(0, 50)}
+                  total={filteredVariants.variants.length}
+                  sourceFormat={upload.sourceFormat}
+                  highlightId={filteredVariants.highlightId}
+                />
+              </>
+            )}
         </Card>
       </div>
 
-      <Card title="Reference Genes">
-        <div className="gene-tabs">
-          {REFERENCE_GENES.map((g) => (
-            <button
-              key={g.id}
-              type="button"
-              className={`gene-tab ${selectedGeneId === g.id ? 'active' : ''}`}
-              onClick={() => jumpToGene(g.id)}
-            >
+      <Card title={`Gene Catalogue (${GENE_CATALOGUE.length} reference genes)`}>
+        <div className="gene-tabs gene-tabs-scroll">
+          {geneListPage.items.map((g) => (
+            <button key={g.id} type="button" className={`gene-tab ${selectedGeneId === g.id ? 'active' : ''}`} onClick={() => navigateToGene(g.id, g.chromosome)}>
               {g.symbol}
             </button>
           ))}
         </div>
+        <div className="pagination">
+          <button type="button" disabled={genePage <= 1} onClick={() => setGenePage((p) => p - 1)}>Previous</button>
+          <span>Page {geneListPage.page} of {geneListPage.totalPages}</span>
+          <button type="button" disabled={genePage >= geneListPage.totalPages} onClick={() => setGenePage((p) => p + 1)}>Next</button>
+        </div>
         {selectedGene && (
           <div className="gene-detail">
             <dl className="detail-dl">
-              <dt>Gene</dt><dd>{selectedGene.symbol} — {selectedGene.name}</dd>
-              <dt>Region</dt><dd>Chr {selectedGene.chromosome}:{selectedGene.start.toLocaleString()}–{selectedGene.end.toLocaleString()}</dd>
+              <dt>Gene</dt><dd>{selectedGene.symbol} — {selectedGene.fullName}</dd>
+              <dt>Region</dt><dd>Chr {selectedGene.chromosome} · {selectedGene.cytoband} · {selectedGene.start.toLocaleString()}–{selectedGene.end.toLocaleString()}</dd>
               <dt>Function</dt><dd>{resolveTiered(selectedGene.function, languageLevel)}</dd>
-              <dt>Description</dt><dd>{resolveTiered(selectedGene.description, languageLevel)}</dd>
             </dl>
-            <ProvenanceBadge provenance="reference-information" />
-            <h4>Variants in uploaded data</h4>
-            {!upload ? (
-              <ObservedMarker observed={false} />
-            ) : geneVariants.length === 0 ? (
-              <>
-                <ObservedMarker observed={false} />
-                <p className="text-muted">No variants observed in this gene region in uploaded file. This does not mean none exist — consumer arrays do not measure every base.</p>
-              </>
-            ) : (
-              <ul>
-                {geneVariants.slice(0, 10).map((v) => (
-                  <li key={v.id}>
-                    <ObservedMarker observed /> pos {v.position} — {v.genotype} {v.rsId && `(${v.rsId})`}
-                  </li>
-                ))}
-              </ul>
+            {imprintingNoteForGene(selectedGene.symbol) && (
+              <p className="text-muted imprinting-note">{imprintingNoteForGene(selectedGene.symbol)}</p>
             )}
-            <Button variant="ghost" onClick={() => navigate(`/pathway-explorer?gene=${selectedGene.symbol}`)}>
-              View related pathways →
-            </Button>
+            <h4>Uploaded variants in region</h4>
+            {!upload ? <ObservedMarker observed={false} /> : geneVariants.length === 0 ? (
+              <p className="text-muted">No observed variants in this gene region. Consumer arrays do not measure every base.</p>
+            ) : (
+              <ul>{geneVariants.slice(0, 10).map((v) => (
+                <li key={v.id}>
+                  <ObservedMarker observed /> {v.position} — <GenotypeCell genotype={v.genotype} sourceFormat={upload?.sourceFormat} />
+                </li>
+              ))}</ul>
+            )}
           </div>
         )}
       </Card>
 
       {upload && (
         <Card title="Genome Simulation Editor" badge="SIMULATION COPY">
-          <p className="sim-copy-notice">
-            <strong>Original data ≠ Simulated genome.</strong> Create a simulation copy to explore conceptual variant changes without altering your uploaded file.
-          </p>
+          <p className="sim-copy-notice"><strong>Original data ≠ Simulated genome.</strong></p>
           <div className="sim-copy-form">
-            <input type="text" value={simCopyName} onChange={(e) => setSimCopyName(e.target.value)} placeholder="Copy name" />
-            <Button onClick={createSimCopy}>Create Simulation Copy</Button>
+            <input type="text" value={simCopyName} onChange={(e) => setSimCopyName(e.target.value)} />
+            <Button onClick={() => dispatch({ type: 'ADD_GENOME_SIM_COPY', payload: createSimulationCopy(upload, simCopyName) })}>Create Simulation Copy</Button>
           </div>
-          {state.genomeSimulationCopies.map((copy) => (
-            <div key={copy.id} className="sim-copy-card">
-              <span className="simulation-badge-inline">SIMULATED</span>
-              <h4>{copy.name}</h4>
-              <p className="text-muted">Edited variants: {copy.editedVariantIds.length}</p>
-              {copy.editedVariantIds.length === 0 && geneVariants[0] && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => toggleVariantInCopy(copy.id, geneVariants[0].id, 'ALT/ALT')}
-                >
-                  Conceptually toggle first gene variant (demo)
-                </Button>
-              )}
-              <EvidenceBadge level="speculative" note="Simulated variant consequence" />
-              <p className="text-muted">
-                {geneVariants.length > 0
-                  ? 'Potential pathway consequence: model-dependent; insufficient information for clinical inference.'
-                  : 'Insufficient information to model this change — no observed variants in selected gene.'}
-              </p>
-            </div>
-          ))}
         </Card>
       )}
     </div>
   );
 }
 
-function VariantRow({ variant }: { variant: GenomicVariant }) {
+function GenotypeCell({ genotype, sourceFormat }: { genotype: string; sourceFormat?: string }) {
+  const help = getGenotypeNotationHelp(genotype, sourceFormat);
+  if (!help) return <>{genotype}</>;
   return (
-    <tr>
-      <td>{variant.position.toLocaleString()}</td>
-      <td>{variant.rsId ?? '—'}</td>
-      <td>{variant.genotype}</td>
-      <td><ObservedMarker observed={variant.observationStatus === 'observed'} /></td>
-    </tr>
+    <span className="genotype-with-help">
+      {genotype}
+      <span className="genotype-help" title={help.explanation}>?</span>
+    </span>
+  );
+}
+
+function VariantTable({ variants, total, sourceFormat, highlightId }: { variants: GenomicVariant[]; total: number; sourceFormat?: string; highlightId?: string | null }) {
+  const highlightRef = useRef<HTMLTableRowElement>(null);
+
+  useEffect(() => {
+    if (highlightId && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [highlightId, variants]);
+
+  return (
+    <div className="variant-table-wrap">
+      <table className="data-table">
+        <thead><tr><th>Position</th><th>rsID</th><th>Genotype</th><th>Status</th></tr></thead>
+        <tbody>
+          {variants.map((v) => (
+            <tr
+              key={v.id}
+              ref={v.id === highlightId ? highlightRef : undefined}
+              className={v.id === highlightId ? 'variant-highlight' : undefined}
+            >
+              <td>{v.position.toLocaleString()}</td>
+              <td>{v.rsId ?? '—'}</td>
+              <td><GenotypeCell genotype={v.genotype} sourceFormat={sourceFormat} /></td>
+              <td><ObservedMarker observed /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {total > 50 && <p className="text-muted">Showing 50 of {total.toLocaleString()}.</p>}
+    </div>
   );
 }

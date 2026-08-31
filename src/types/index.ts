@@ -211,9 +211,24 @@ export interface GlossaryEntry {
   example: string;
   appearsIn: string[];
   relatedTerms: string[];
+  categories: GlossaryCategory[];
+  aliases?: string[];
   tiered?: TieredText;
   simpleTitle?: string;
 }
+
+export type GlossaryCategory =
+  | 'atomic'
+  | 'chemistry'
+  | 'genetics'
+  | 'biology'
+  | 'equipment'
+  | 'experiments'
+  | 'measurements'
+  | 'microscopy'
+  | 'pathways'
+  | 'results'
+  | 'safety';
 
 export interface AppSettings {
   theme: 'dark';
@@ -225,6 +240,7 @@ export interface AppSettings {
   activeProjectId: string | null;
   autoControlEnabled: boolean;
   replicateCount: number;
+  showDemoContent: boolean;
 }
 
 export interface MolecularModelPlaceholder {

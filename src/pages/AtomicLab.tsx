@@ -4,11 +4,12 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { EvidenceBadge } from '../components/ui/EvidenceBadge';
-import { ParameterHelp } from '../components/ui/GlossaryTerm';
+import { ParameterHelp, GlossaryTerm } from '../components/ui/GlossaryTerm';
 import { resolveTiered } from '../content/language';
 import { useLanguage } from '../components/ui/LanguageControl';
 import { buildAtom, ATOMIC_LAB_LIMITATIONS } from '../data/elements';
 import { PERIODIC_TABLE, getTablePosition, type FullElementDef } from '../data/periodicTable';
+import { evaluateIsotope, getIsotopesForElement, hasStableIsotopes } from '../data/isotopes';
 import type { AtomModel } from '../types/scientific';
 
 const SUPPORTED_BONDS: Record<string, string[]> = {
@@ -29,8 +30,16 @@ export function AtomicLabPage() {
   const [atoms, setAtoms] = useState<AtomModel[]>([]);
   const [bondLog, setBondLog] = useState<string[]>([]);
   const [filterClass, setFilterClass] = useState<string>('all');
+  const [showIsotopeTable, setShowIsotopeTable] = useState(false);
 
   const element = PERIODIC_TABLE.find((e) => e.symbol === selectedSymbol)!;
+
+  const isotopeEval = useMemo(
+    () => evaluateIsotope(selectedSymbol, neutrons),
+    [selectedSymbol, neutrons],
+  );
+
+  const elementIsotopes = useMemo(() => getIsotopesForElement(selectedSymbol), [selectedSymbol]);
 
   const currentAtom = useMemo(
     () => buildAtom(element, { neutrons, charge }),
@@ -126,17 +135,58 @@ export function AtomicLabPage() {
             <dt>Group</dt><dd>{element.group}</dd>
             <dt>Period</dt><dd>{element.period}</dd>
             <dt>Classification</dt><dd>{element.classification}</dd>
-            <dt>Electron configuration</dt><dd>{element.electronConfig} (simplified reference)</dd>
-            <dt>Stability</dt><dd>{element.radioactive ? 'Radioactive isotopes known' : 'Stable isotopes predominate'}</dd>
-            {element.radioactive && (
-              <>
-                <dt>Half-life</dt><dd>{element.halfLife ?? 'Isotope-dependent'}</dd>
-                <dt>Decay mode</dt><dd>{element.decayMode ?? 'Reference data'}</dd>
-              </>
-            )}
+            <dt><GlossaryTerm term="electron-configuration">Electron configuration</GlossaryTerm></dt><dd>{element.electronConfig} (simplified reference)</dd>
+            <dt>Stable isotopes known</dt>
+            <dd>{hasStableIsotopes(element.symbol) ? 'Yes — see isotope table' : 'No stable isotopes of this element are known.'}</dd>
           </dl>
-          {element.radioactive && (
-            <p className="text-muted warn-text">Radioactive reference data only — no acquisition or handling instructions.</p>
+          <Button variant="ghost" onClick={() => setShowIsotopeTable(!showIsotopeTable)}>
+            {showIsotopeTable ? 'Hide isotope table' : 'View isotope table'}
+          </Button>
+          {showIsotopeTable && (
+            <table className="isotope-table">
+              <thead>
+                <tr><th>Isotope</th><th>Stable</th><th>Half-life</th><th>Decay</th><th>Daughter</th></tr>
+              </thead>
+              <tbody>
+                {elementIsotopes.length === 0 && (
+                  <tr><td colSpan={5}>No curated isotopes — use Atom Builder to evaluate a neutron count.</td></tr>
+                )}
+                {elementIsotopes.map((iso) => (
+                  <tr key={iso.name}>
+                    <td>{iso.name}</td>
+                    <td>{iso.stable ? 'Stable' : 'Unstable'}</td>
+                    <td>{iso.halfLife ?? '—'}</td>
+                    <td>{iso.decayMode ?? '—'}</td>
+                    <td>{iso.daughterNuclide ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <Button variant="secondary" onClick={() => navigate(`/molecule-explorer?element=${selectedSymbol}`)}>
+            View compounds containing {selectedSymbol}
+          </Button>
+        </Card>
+
+        <Card title="Selected isotope (Atom Builder)">
+          <dl className="detail-dl">
+            <dt>Isotope</dt><dd>{isotopeEval.name}</dd>
+            <dt>Protons</dt><dd>{isotopeEval.protons}</dd>
+            <dt>Neutrons</dt><dd>{isotopeEval.neutrons}</dd>
+            <dt>Mass number</dt><dd>{isotopeEval.massNumber}</dd>
+            <dt>Stability</dt><dd>{isotopeEval.stable ? 'STABLE' : 'UNSTABLE'}</dd>
+            <dt>Radioactive</dt><dd>{isotopeEval.radioactive ? 'Yes' : 'No'}</dd>
+            {isotopeEval.halfLife && <dt><GlossaryTerm term="half-life">Half-life</GlossaryTerm></dt>}
+            {isotopeEval.halfLife && <dd>{isotopeEval.halfLife}</dd>}
+            {isotopeEval.decayMode && <dt><GlossaryTerm term="decay-mode">Primary decay mode</GlossaryTerm></dt>}
+            {isotopeEval.decayMode && <dd>{isotopeEval.decayMode}</dd>}
+            {isotopeEval.daughterNuclide && <dt><GlossaryTerm term="daughter-nuclide">Daughter nuclide</GlossaryTerm></dt>}
+            {isotopeEval.daughterNuclide && <dd>{isotopeEval.daughterNuclide}</dd>}
+          </dl>
+          <p className="text-muted">{isotopeEval.stabilityExplanation}</p>
+          {isotopeEval.notes && <p className="text-muted warn-text">{isotopeEval.notes}</p>}
+          {!isotopeEval.radioactive && (
+            <p className="text-muted">Educational reference only — radioactive materials are not inherently explosive; decay releases energy gradually according to half-life.</p>
           )}
         </Card>
 
