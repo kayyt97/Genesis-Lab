@@ -1,4 +1,5 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -8,7 +9,10 @@ import { GlossaryTerm, ParameterHelp } from '../components/ui/GlossaryTerm';
 import { TimelineScrubber } from '../components/ui/TimelineScrubber';
 import { PARAM_HELP } from '../content/parameterHelp';
 import { SimulationBadge } from '../components/ui/DisclaimerBanner';
-import { useAppState } from '../store/AppContext';
+import { ViabilityForecastPanel } from '../components/lab/ViabilityForecastPanel';
+import { forecastViability } from '../services/viabilityForecast';
+import { runExperimentalDesignCheck, generateAutoControlEnvironment } from '../services/designCheck';
+import { useAppState, sendToMicroscope, generateId } from '../store/AppContext';
 import { demoOrganisms, defaultEnvironment } from '../data/demoData';
 import {
   createSimulation,
@@ -37,14 +41,34 @@ const ENV_LABELS: { key: keyof EnvironmentConditions; label: string; unit: strin
 
 export function VirtualLabPage() {
   const { state, dispatch } = useAppState();
+  const navigate = useNavigate();
   const [selectedOrganism, setSelectedOrganism] = useState('ORG-001');
   const [scrubTime, setScrubTime] = useState<number | null>(null);
+  const [showDesignCheck, setShowDesignCheck] = useState(false);
   const sim = state.activeSimulation;
   const handoff = state.labHandoff;
 
   const displayState = scrubTime !== null && sim
     ? sim.snapshots.find((s) => s.timeHours === scrubTime)?.organismState ?? sim.organismState
     : sim?.organismState;
+
+  const organism = demoOrganisms.find((o) => o.id === selectedOrganism);
+  const env = sim?.environment ?? defaultEnvironment;
+
+  const viabilityForecast = useMemo(
+    () => forecastViability(env, organism),
+    [env, organism],
+  );
+
+  const controlEnv = useMemo(
+    () => (state.settings.autoControlEnabled ? generateAutoControlEnvironment(defaultEnvironment) : defaultEnvironment),
+    [state.settings.autoControlEnabled],
+  );
+
+  const designChecks = useMemo(
+    () => runExperimentalDesignCheck(env, controlEnv, state.settings.autoControlEnabled, state.settings.replicateCount),
+    [env, controlEnv, state.settings.autoControlEnabled, state.settings.replicateCount],
+  );
 
   const initSimulation = useCallback(() => {
     const newSim = createSimulation(selectedOrganism, defaultEnvironment);
@@ -98,7 +122,6 @@ export function VirtualLabPage() {
     });
   };
 
-  const organism = demoOrganisms.find((o) => o.id === selectedOrganism);
   const viabilityData =
     sim?.snapshots.map((s) => ({ x: s.timeHours, y: s.organismState.viability })) ?? [];
   const populationData =
@@ -124,6 +147,7 @@ export function VirtualLabPage() {
 
       <div className="lab-grid">
         <Card title="Sample / Environment View" className="lab-view-panel">
+          <ViabilityForecastPanel forecast={viabilityForecast} />
           <div className="environment-visual">
             <div className="petri-dish">
               <div
@@ -209,6 +233,72 @@ export function VirtualLabPage() {
           {sim?.seed !== undefined && (
             <p className="text-muted">Simulation seed: {sim.seed}</p>
           )}
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={state.settings.autoControlEnabled}
+              onChange={(e) => dispatch({ type: 'UPDATE_SETTINGS', payload: { autoControlEnabled: e.target.checked } })}
+            />
+            Auto-control: matched control environment proposed
+          </label>
+          {!state.settings.autoControlEnabled && (
+            <p className="text-muted warn-text">Auto-control off: interpretation without a control may be harder.</p>
+          )}
+          <Button variant="ghost" onClick={() => setShowDesignCheck(!showDesignCheck)}>Design Check</Button>
+          {showDesignCheck && (
+            <ul className="design-check-list">
+              {designChecks.map((c) => (
+                <li key={c.id} className={`design-check design-check-${c.status}`}>{c.label}</li>
+              ))}
+            </ul>
+          )}
+          {state.settings.autoControlEnabled && (
+            <div className="control-comparison">
+              <div className="control-pill experimental">
+                <span className="pill-label">Experimental</span>
+                <span>T: {env.temperature}°C · pH: {env.ph} · O₂: {env.oxygen}%</span>
+              </div>
+              <div className="control-pill control">
+                <span className="pill-label">Control</span>
+                <span>T: {controlEnv.temperature}°C · pH: {controlEnv.ph} · O₂: {controlEnv.oxygen}%</span>
+              </div>
+            </div>
+          )}
+          <label className="checkbox-label">
+            Replicates: {state.settings.replicateCount}
+            <input
+              type="range"
+              min="1"
+              max="5"
+              step="1"
+              value={state.settings.replicateCount}
+              onChange={(e) => dispatch({ type: 'UPDATE_SETTINGS', payload: { replicateCount: parseInt(e.target.value, 10) } })}
+            />
+          </label>
+          <div className="lab-handoff-actions">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (!sim || !organism) return;
+                sendToMicroscope(dispatch, {
+                  id: generateId('MS'),
+                  label: `${organism.commonName} (Virtual Lab)`,
+                  sourceType: 'virtual-lab',
+                  sourceId: selectedOrganism,
+                  organismCategory: organism.category,
+                  morphologySupported: true,
+                  simulatedViability: sim.organismState.viability,
+                  notes: `Modelled viability: ${sim.organismState.viability.toFixed(1)}% at ${sim.timeHours.toFixed(1)} h`,
+                });
+                navigate('/virtual-microscope');
+              }}
+            >
+              Send to Microscope
+            </Button>
+            <Button variant="ghost" onClick={() => navigate('/pathway-explorer')}>
+              Open in Pathway Explorer
+            </Button>
+          </div>
           <div className="speed-control">
             <label>
               Speed: {sim?.speed ?? 1}×

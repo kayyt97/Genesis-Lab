@@ -223,6 +223,8 @@ export interface AppSettings {
   currentProjectName: string;
   languageLevel: import('./language').LanguageLevel;
   activeProjectId: string | null;
+  autoControlEnabled: boolean;
+  replicateCount: number;
 }
 
 export interface MolecularModelPlaceholder {

@@ -1506,3 +1506,70 @@ input[type="range"] {
 
 .page-container { overflow: visible; }
 .card-body { overflow: visible; }
+
+/* Phase 3 */
+.viability-forecast { margin-bottom: 16px; padding: 12px; background: var(--bg-primary); border-radius: var(--radius); border: 1px solid var(--border-subtle); }
+.viability-forecast-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.viability-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 8px 0; }
+.viability-metric { font-size: 13px; }
+.viability-category { font-weight: 600; }
+.viability-limiting { font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+.design-check-list { list-style: none; margin: 12px 0; padding: 0; }
+.design-check { padding: 6px 0; font-size: 13px; }
+.design-check-pass { color: #66bb6a; }
+.design-check-warn { color: #fbbf24; }
+.design-check-info { color: var(--text-secondary); }
+.design-check-detail { color: var(--text-muted); font-size: 12px; }
+.warn-text { color: #fbbf24; }
+.control-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+.control-pill { padding: 8px 12px; border-radius: var(--radius); font-size: 12px; }
+.control-pill.experimental { background: rgba(79,195,247,0.1); border: 1px solid rgba(79,195,247,0.3); }
+.control-pill.control { background: rgba(148,163,184,0.1); border: 1px solid rgba(148,163,184,0.3); }
+.pill-label { display: block; font-weight: 600; margin-bottom: 4px; }
+.lab-handoff-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.dna-helix-viewer { margin: 12px 0; }
+.helix-controls { display: flex; gap: 16px; align-items: center; margin-bottom: 8px; }
+.helix-canvas { width: 100%; max-width: 400px; border-radius: var(--radius); cursor: grab; background: var(--bg-primary); }
+.helix-marker-note { font-size: 12px; margin-top: 8px; }
+.helix-gene-quick { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.search-input { width: 100%; padding: 8px 12px; margin-bottom: 8px; background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius); color: var(--text-primary); }
+.search-results { list-style: none; padding: 0; margin: 0; }
+.search-result-btn { width: 100%; text-align: left; padding: 8px; background: transparent; border: none; color: var(--text-primary); cursor: pointer; border-radius: var(--radius); }
+.search-result-btn:hover { background: var(--bg-elevated); }
+.search-result-type { font-size: 10px; text-transform: uppercase; color: var(--text-muted); margin-right: 8px; }
+.import-report-dl { margin-bottom: 12px; }
+.exclusion-list { font-size: 13px; color: var(--text-secondary); }
+.genome-view-toggle { display: flex; gap: 8px; margin-bottom: 12px; }
+.periodic-table-grid { display: grid; grid-template-columns: repeat(18, 1fr); gap: 2px; max-width: 900px; overflow-x: auto; }
+.periodic-cell { min-width: 36px; min-height: 44px; padding: 2px; font-size: 10px; }
+.periodic-cell.radioactive { border-color: rgba(251,191,36,0.5); }
+.el-mass { display: block; font-size: 8px; color: var(--text-muted); }
+.periodic-filters { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+.filter-btn { padding: 4px 8px; font-size: 11px; background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius); color: var(--text-secondary); cursor: pointer; }
+.filter-btn.active { background: var(--accent); color: #fff; }
+.guided-panel { margin-top: 12px; padding: 12px; background: var(--bg-primary); border-radius: var(--radius); }
+.guided-options { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.guided-opt { padding: 8px 12px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius); cursor: pointer; color: var(--text-primary); }
+.guided-opt.active { border-color: var(--accent); background: rgba(79,195,247,0.1); }
+.teaching-prompt { margin-top: 12px; padding: 12px; background: var(--bg-primary); border-radius: var(--radius); font-size: 13px; line-height: 1.6; }
+.microscope-controls-row { display: grid; grid-template-columns: 1fr 2fr; gap: 16px; }
+@media (max-width: 768px) { .microscope-controls-row { grid-template-columns: 1fr; } }
+.microscope-viewport { overflow: hidden; height: 280px; border-radius: 50%; background: #0a0f14; border: 3px solid #333; margin: 0 auto; width: 280px; position: relative; }
+.microscope-field-wrap { flex: 1; min-width: 0; }
+.microscope-compare { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+.microscope-compare.compare-active .microscope-viewport { width: 200px; height: 200px; }
+.field-label { display: block; text-align: center; font-size: 11px; font-weight: 600; margin-bottom: 4px; color: var(--text-secondary); }
+.microscope-cell-main { position: relative; border-radius: 50%; background: rgba(79,195,247,0.15); border: 2px solid rgba(255,255,255,0.3); margin: auto; top: 50%; transform: translateY(-50%); }
+.specimen-load-panel { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle); }
+.specimen-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.specimen-btn { padding: 6px 10px; font-size: 12px; background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius); cursor: pointer; color: var(--text-primary); }
+.specimen-info { margin-top: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.scale-bar { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+.clear-data-confirm { margin-top: 12px; }
+.clear-data-confirm ul { margin: 8px 0; font-size: 13px; color: var(--text-secondary); }
+.clear-data-actions { display: flex; gap: 8px; margin-top: 12px; }
+.branch-toggle { background: transparent; border: 1px solid var(--border-subtle); border-radius: 4px; width: 24px; height: 24px; cursor: pointer; color: var(--text-secondary); margin-left: 8px; }
+.pathway-branch { margin: 8px 0 8px 16px; padding: 8px; border-left: 2px solid var(--border-subtle); }
+.link-btn { background: none; border: none; color: var(--accent); cursor: pointer; text-decoration: underline; }
+.handoff-banner { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: rgba(79,195,247,0.1); border: 1px solid rgba(79,195,247,0.3); border-radius: var(--radius); margin-bottom: 16px; }
+.handoff-dismiss { margin-left: auto; background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 18px; }

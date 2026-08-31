@@ -1,4 +1,5 @@
-import type { GenomicVariant, GenomeUpload } from '../types/scientific';
+import type { GenomicVariant, GenomeUpload, GenomeImportReport } from '../types/scientific';
+import { normalizeChromosome, buildChromosomeCounts } from './chromosomeUtils';
 
 export interface ParseResult {
   success: boolean;
@@ -6,35 +7,98 @@ export interface ParseResult {
   error?: string;
 }
 
+function detectGenomeBuild(content: string): string {
+  if (content.includes('GRCh38') || content.includes('build 38')) return 'GRCh38 (detected)';
+  if (content.includes('GRCh37') || content.includes('build 37')) return 'GRCh37 (detected)';
+  if (content.includes('b36')) return 'NCBI36/b36 (detected)';
+  return 'unknown';
+}
+
+function emptyReport(): GenomeImportReport {
+  return {
+    totalRowsRead: 0,
+    successfullyParsed: 0,
+    chromosomeAssigned: 0,
+    unsupportedUnmapped: 0,
+    malformedSkipped: 0,
+    chromosomeCoverage: {},
+    detectedBuild: 'unknown',
+    exclusionReasons: [],
+  };
+}
+
 function parse23andMe(content: string, fileName: string): ParseResult {
-  const lines = content.split('\n');
+  const lines = content.split(/\r?\n/);
   const variants: GenomicVariant[] = [];
-  let lineNum = 0;
+  const report = emptyReport();
+  const exclusionMap = new Map<string, number>();
+
+  const addExclusion = (reason: string) => {
+    exclusionMap.set(reason, (exclusionMap.get(reason) ?? 0) + 1);
+  };
 
   for (const line of lines) {
-    lineNum++;
     if (line.startsWith('#') || line.trim() === '') continue;
+    report.totalRowsRead++;
+
     const parts = line.split('\t');
-    if (parts.length < 4) continue;
-    const [rsid, chromosome, position, genotype] = parts;
-    if (rsid === 'rsid' || chromosome === 'chromosome') continue;
-    if (!chromosome || !position || !genotype || genotype === '--') continue;
+    if (parts.length < 4) {
+      report.malformedSkipped++;
+      addExclusion('Fewer than 4 tab-separated fields');
+      continue;
+    }
+
+    const [rsid, chromosomeRaw, positionRaw, genotype] = parts;
+    if (rsid === 'rsid' || chromosomeRaw === 'chromosome') continue;
+
+    if (!chromosomeRaw?.trim() || !positionRaw?.trim()) {
+      report.malformedSkipped++;
+      addExclusion('Missing chromosome or position');
+      continue;
+    }
+
+    const genotypeClean = genotype?.trim() ?? '';
+    if (!genotypeClean || genotypeClean === '--' || genotypeClean === 'NA') {
+      report.malformedSkipped++;
+      addExclusion('Missing or no-call genotype (--/NA)');
+      continue;
+    }
+
+    const position = parseInt(positionRaw.trim(), 10);
+    if (Number.isNaN(position) || position < 0) {
+      report.malformedSkipped++;
+      addExclusion('Invalid position');
+      continue;
+    }
+
+    const { normalized, reason } = normalizeChromosome(chromosomeRaw);
+    if (!normalized) {
+      report.unsupportedUnmapped++;
+      addExclusion(reason === 'unsupported' ? `Unsupported chromosome: ${chromosomeRaw.trim()}` : 'Malformed chromosome identifier');
+      continue;
+    }
 
     variants.push({
       id: `VAR-${variants.length + 1}`,
-      chromosome: chromosome.replace(/^chr/i, ''),
-      position: parseInt(position, 10),
-      rsId: rsid.startsWith('rs') ? rsid : undefined,
+      chromosome: normalized,
+      position,
+      rsId: rsid.startsWith('rs') ? rsid.trim() : undefined,
       referenceAllele: '',
       alternateAllele: '',
-      genotype: genotype.trim(),
+      genotype: genotypeClean,
       observationStatus: 'observed',
     });
+    report.successfullyParsed++;
+    report.chromosomeAssigned++;
   }
 
   if (variants.length === 0) {
     return { success: false, error: 'No valid genotype rows found in 23andMe-format file.' };
   }
+
+  report.chromosomeCoverage = buildChromosomeCounts(variants);
+  report.detectedBuild = detectGenomeBuild(content);
+  report.exclusionReasons = [...exclusionMap.entries()].map(([reason, count]) => ({ reason, count }));
 
   return {
     success: true,
@@ -43,41 +107,80 @@ function parse23andMe(content: string, fileName: string): ParseResult {
       fileName,
       sourceFormat: '23andme',
       uploadedAt: new Date().toISOString(),
-      variants: variants.slice(0, 50000),
+      variants,
       variantCount: variants.length,
       isPersisted: false,
+      importReport: report,
     },
   };
 }
 
 function parseAncestry(content: string, fileName: string): ParseResult {
-  const lines = content.split('\n');
+  const lines = content.split(/\r?\n/);
   const variants: GenomicVariant[] = [];
+  const report = emptyReport();
+  const exclusionMap = new Map<string, number>();
+
+  const addExclusion = (reason: string) => {
+    exclusionMap.set(reason, (exclusionMap.get(reason) ?? 0) + 1);
+  };
 
   for (const line of lines) {
     if (line.startsWith('#') || line.trim() === '') continue;
+    report.totalRowsRead++;
+
     const parts = line.split('\t');
-    if (parts.length < 5) continue;
-    const [rsid, , chromosome, position, allele1, allele2] = parts;
+    if (parts.length < 5) {
+      report.malformedSkipped++;
+      addExclusion('Fewer than 5 tab-separated fields');
+      continue;
+    }
+
+    const [rsid, , chromosomeRaw, positionRaw, allele1, allele2] = parts;
     if (rsid === 'rsid') continue;
+
     const genotype = `${(allele1 ?? '').trim()}${(allele2 ?? '').trim()}`;
-    if (!chromosome || !position || genotype.includes('0')) continue;
+    if (!chromosomeRaw?.trim() || !positionRaw?.trim() || !genotype || genotype.includes('0')) {
+      report.malformedSkipped++;
+      addExclusion('Missing fields or invalid alleles');
+      continue;
+    }
+
+    const position = parseInt(positionRaw.trim(), 10);
+    if (Number.isNaN(position)) {
+      report.malformedSkipped++;
+      addExclusion('Invalid position');
+      continue;
+    }
+
+    const { normalized, reason } = normalizeChromosome(chromosomeRaw);
+    if (!normalized) {
+      report.unsupportedUnmapped++;
+      addExclusion(reason === 'unsupported' ? `Unsupported chromosome: ${chromosomeRaw.trim()}` : 'Malformed chromosome');
+      continue;
+    }
 
     variants.push({
       id: `VAR-${variants.length + 1}`,
-      chromosome: chromosome.replace(/^chr/i, ''),
-      position: parseInt(position, 10),
-      rsId: rsid.startsWith('rs') ? rsid : undefined,
+      chromosome: normalized,
+      position,
+      rsId: rsid.startsWith('rs') ? rsid.trim() : undefined,
       referenceAllele: allele1?.trim() ?? '',
       alternateAllele: allele2?.trim() ?? '',
       genotype,
       observationStatus: 'observed',
     });
+    report.successfullyParsed++;
+    report.chromosomeAssigned++;
   }
 
   if (variants.length === 0) {
     return { success: false, error: 'No valid genotype rows found in Ancestry-format file.' };
   }
+
+  report.chromosomeCoverage = buildChromosomeCounts(variants);
+  report.detectedBuild = detectGenomeBuild(content);
+  report.exclusionReasons = [...exclusionMap.entries()].map(([reason, count]) => ({ reason, count }));
 
   return {
     success: true,
@@ -86,39 +189,68 @@ function parseAncestry(content: string, fileName: string): ParseResult {
       fileName,
       sourceFormat: 'ancestry',
       uploadedAt: new Date().toISOString(),
-      variants: variants.slice(0, 50000),
+      variants,
       variantCount: variants.length,
       isPersisted: false,
+      importReport: report,
     },
   };
 }
 
 function parseVCF(content: string, fileName: string): ParseResult {
-  const lines = content.split('\n');
+  const lines = content.split(/\r?\n/);
   const variants: GenomicVariant[] = [];
+  const report = emptyReport();
+  const exclusionMap = new Map<string, number>();
 
   for (const line of lines) {
     if (line.startsWith('#')) continue;
+    report.totalRowsRead++;
+
     const parts = line.split('\t');
-    if (parts.length < 10) continue;
-    const [chrom, pos, , ref, alt, , , , , sample] = parts;
-    const gtMatch = sample.match(/(\d)[\/|](\d)/);
+    if (parts.length < 10) {
+      report.malformedSkipped++;
+      exclusionMap.set('Insufficient VCF columns', (exclusionMap.get('Insufficient VCF columns') ?? 0) + 1);
+      continue;
+    }
+
+    const [chromRaw, posRaw, , ref, alt, , , , , sample] = parts;
+    const position = parseInt(posRaw, 10);
+    if (Number.isNaN(position)) {
+      report.malformedSkipped++;
+      continue;
+    }
+
+    const { normalized, reason } = normalizeChromosome(chromRaw);
+    if (!normalized) {
+      report.unsupportedUnmapped++;
+      exclusionMap.set(reason === 'unsupported' ? `Unsupported contig: ${chromRaw}` : 'Malformed contig', (exclusionMap.get(reason ?? '') ?? 0) + 1);
+      continue;
+    }
+
+    const gtMatch = sample.match(/(\d)[/|](\d)/);
     const genotype = gtMatch ? `${ref}${alt}` : sample.split(':')[0];
 
     variants.push({
       id: `VAR-${variants.length + 1}`,
-      chromosome: chrom.replace(/^chr/i, ''),
-      position: parseInt(pos, 10),
+      chromosome: normalized,
+      position,
       referenceAllele: ref,
       alternateAllele: alt,
       genotype,
       observationStatus: 'observed',
     });
+    report.successfullyParsed++;
+    report.chromosomeAssigned++;
   }
 
   if (variants.length === 0) {
     return { success: false, error: 'No variant rows found in VCF file.' };
   }
+
+  report.chromosomeCoverage = buildChromosomeCounts(variants);
+  report.detectedBuild = detectGenomeBuild(content);
+  report.exclusionReasons = [...exclusionMap.entries()].map(([reason, count]) => ({ reason, count }));
 
   return {
     success: true,
@@ -127,9 +259,10 @@ function parseVCF(content: string, fileName: string): ParseResult {
       fileName,
       sourceFormat: 'vcf',
       uploadedAt: new Date().toISOString(),
-      variants: variants.slice(0, 50000),
+      variants,
       variantCount: variants.length,
       isPersisted: false,
+      importReport: report,
     },
   };
 }
@@ -137,17 +270,17 @@ function parseVCF(content: string, fileName: string): ParseResult {
 export function detectFormat(content: string, fileName: string): '23andme' | 'ancestry' | 'vcf' | 'unknown' {
   const lower = fileName.toLowerCase();
   if (lower.endsWith('.vcf') || lower.endsWith('.vcf.gz')) return 'vcf';
-  const head = content.slice(0, 2000);
+  const head = content.slice(0, 4000);
   if (head.includes('##fileformat=VCF')) return 'vcf';
   if (head.includes('rsid\tchromosome\tposition\tgenotype')) return '23andme';
   if (head.includes('rsid\tchromosome\tposition\tallele1\tallele2')) return 'ancestry';
-  if (head.match(/^rs\d/m)) return '23andme';
+  if (/^rs\d+\t/i.test(content.slice(0, 500))) return '23andme';
   return 'unknown';
 }
 
 export async function parseGenomeFile(file: File): Promise<ParseResult> {
-  if (file.size > 50 * 1024 * 1024) {
-    return { success: false, error: 'File exceeds 50 MB limit for local parsing.' };
+  if (file.size > 100 * 1024 * 1024) {
+    return { success: false, error: 'File exceeds 100 MB limit for local parsing.' };
   }
 
   let content: string;
@@ -188,4 +321,10 @@ export function createSimulationCopy(
     editedVariantIds: [],
     isSimulation: true,
   };
+}
+
+/** Reconcile import report totals for display validation */
+export function validateImportReconciliation(report: GenomeImportReport): boolean {
+  const coverageSum = Object.values(report.chromosomeCoverage).reduce((a, b) => a + b, 0);
+  return coverageSum === report.chromosomeAssigned;
 }

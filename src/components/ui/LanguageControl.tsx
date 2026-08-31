@@ -21,7 +21,7 @@ export function LanguageControl({ compact = false }: { compact?: boolean }) {
             aria-pressed={level === l}
             title={LANGUAGE_LEVEL_LABELS[l]}
           >
-            {compact ? l.charAt(0).toUpperCase() : LANGUAGE_LEVEL_LABELS[l]}
+            {compact ? LANGUAGE_LEVEL_LABELS[l] : LANGUAGE_LEVEL_LABELS[l]}
           </button>
         ))}
       </div>

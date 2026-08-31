@@ -25,6 +25,7 @@ export const CHROMOSOMES = [
   { id: '22', label: 'Chr 22', length: 51000000 },
   { id: 'X', label: 'Chr X', length: 156000000 },
   { id: 'Y', label: 'Chr Y', length: 57000000 },
+  { id: 'MT', label: 'Chr MT (mitochondrial)', length: 16569 },
 ];
 
 export const REFERENCE_GENES: GeneReference[] = [
@@ -103,6 +104,25 @@ export const REFERENCE_GENES: GeneReference[] = [
       technical: 'Binds lipid particles facilitating receptor-mediated uptake.',
     },
     pathwayIds: ['PATH-LIPID'],
+  },
+  {
+    id: 'GEN-HTT',
+    symbol: 'HTT',
+    name: 'Huntingtin',
+    chromosome: '4',
+    start: 3076407,
+    end: 3245688,
+    description: {
+      simple: 'HTT — the huntingtin gene. It provides instructions for a protein involved in nerve cell function. Studied in Huntington disease research.',
+      standard: 'Gene encoding huntingtin protein; CAG repeat expansion associated with Huntington disease in clinical literature.',
+      technical: 'HTT locus on 4p16.3; encodes huntingtin scaffold protein involved in vesicular transport and transcriptional regulation.',
+    },
+    function: {
+      simple: 'Helps transport materials inside nerve cells and supports cell health.',
+      standard: 'Neuronal protein involved in axonal transport and synaptic function.',
+      technical: 'Scaffold protein interacting with dynein/dynactin; mutant polyQ expansions alter aggregation propensity.',
+    },
+    pathwayIds: ['PATH-HTT'],
   },
 ];
 

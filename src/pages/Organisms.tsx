@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { GlossaryTerm } from '../components/ui/GlossaryTerm';
+import { EvidenceBadge } from '../components/ui/EvidenceBadge';
+import { resolveTiered } from '../content/language';
+import { useLanguage } from '../components/ui/LanguageControl';
 import { demoOrganisms } from '../data/demoData';
+import { BIOLOGICAL_LIBRARY, LIBRARY_CATEGORIES, type BiologicalReferenceEntry } from '../data/biologicalLibrary';
 import type { OrganismCategory } from '../types';
 
 const CATEGORIES: { value: OrganismCategory | 'all'; label: string; glossary?: string }[] = [
@@ -18,20 +22,29 @@ const CATEGORIES: { value: OrganismCategory | 'all'; label: string; glossary?: s
 
 export function OrganismsPage() {
   const [category, setCategory] = useState<OrganismCategory | 'all'>('all');
+  const [refCategory, setRefCategory] = useState<string>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedRefId, setSelectedRefId] = useState<string | null>(null);
+  const languageLevel = useLanguage();
 
   const filtered =
     category === 'all'
       ? demoOrganisms
       : demoOrganisms.filter((o) => o.category === category);
 
+  const refFiltered = useMemo(() => {
+    if (refCategory === 'all') return BIOLOGICAL_LIBRARY;
+    return BIOLOGICAL_LIBRARY.filter((e) => e.category === refCategory);
+  }, [refCategory]);
+
   const selected = demoOrganisms.find((o) => o.id === selectedId);
+  const selectedRef = BIOLOGICAL_LIBRARY.find((e) => e.id === selectedRefId);
 
   return (
     <div className="organisms-page">
       <PageHeader
         title="Organisms & Biological Systems"
-        subtitle="Browsable biological library — demonstration data for Phase 1"
+        subtitle="Master reference library — educational specimens across biological categories"
       />
 
       <div className="category-tabs">
@@ -48,14 +61,14 @@ export function OrganismsPage() {
       </div>
 
       <div className="organisms-layout">
-        <Card title="Entries">
+        <Card title="Simulation Organisms">
           <ul className="organism-list">
             {filtered.map((o) => (
               <li key={o.id}>
                 <button
                   type="button"
                   className={`organism-item ${selectedId === o.id ? 'active' : ''}`}
-                  onClick={() => setSelectedId(o.id)}
+                  onClick={() => { setSelectedId(o.id); setSelectedRefId(null); }}
                 >
                   <span className="organism-name">{o.commonName}</span>
                   <span className="organism-sci">{o.scientificName}</span>
@@ -92,6 +105,56 @@ export function OrganismsPage() {
           </Card>
         )}
       </div>
+
+      <Card title="Reference Biological Library">
+        <div className="category-tabs">
+          {LIBRARY_CATEGORIES.map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              className={`category-tab ${refCategory === c.value ? 'active' : ''}`}
+              onClick={() => setRefCategory(c.value)}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+        <ul className="organism-list">
+          {refFiltered.map((e) => (
+            <li key={e.id}>
+              <button
+                type="button"
+                className={`organism-item ${selectedRefId === e.id ? 'active' : ''}`}
+                onClick={() => { setSelectedRefId(e.id); setSelectedId(null); }}
+              >
+                <span className="organism-name">{e.name}</span>
+                <span className="organism-sci">{e.scientificName}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        {selectedRef && <ReferenceDetail entry={selectedRef} languageLevel={languageLevel} />}
+      </Card>
+    </div>
+  );
+}
+
+function ReferenceDetail({ entry, languageLevel }: { entry: BiologicalReferenceEntry; languageLevel: import('../types/language').LanguageLevel }) {
+  return (
+    <div className="ref-detail" style={{ marginTop: 16 }}>
+      <h4>{entry.name}</h4>
+      <EvidenceBadge level={entry.evidence.level} />
+      {entry.pathogenInfo && (
+        <p className="text-muted warn-text">Educational reference only — non-operational pathogen information.</p>
+      )}
+      <dl className="detail-dl">
+        <dt>Taxonomy</dt><dd>{entry.taxonomy}</dd>
+        <dt>Morphology</dt><dd>{entry.morphology}</dd>
+        <dt>Description</dt><dd>{resolveTiered(entry.description, languageLevel)}</dd>
+        <dt>Cellular organisation</dt><dd>{entry.cellularOrganisation}</dd>
+        <dt>Characteristics</dt><dd><ul>{entry.characteristics.map((c, i) => <li key={i}>{c}</li>)}</ul></dd>
+        <dt>Morphology supported for microscopy</dt><dd>{entry.morphologySupported ? 'Yes (modelled)' : 'No — insufficient data'}</dd>
+      </dl>
     </div>
   );
 }

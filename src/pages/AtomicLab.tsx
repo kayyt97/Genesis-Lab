@@ -7,7 +7,8 @@ import { EvidenceBadge } from '../components/ui/EvidenceBadge';
 import { ParameterHelp } from '../components/ui/GlossaryTerm';
 import { resolveTiered } from '../content/language';
 import { useLanguage } from '../components/ui/LanguageControl';
-import { ELEMENTS, buildAtom, ATOMIC_LAB_LIMITATIONS } from '../data/elements';
+import { buildAtom, ATOMIC_LAB_LIMITATIONS } from '../data/elements';
+import { PERIODIC_TABLE, getTablePosition, type FullElementDef } from '../data/periodicTable';
 import type { AtomModel } from '../types/scientific';
 
 const SUPPORTED_BONDS: Record<string, string[]> = {
@@ -27,13 +28,20 @@ export function AtomicLabPage() {
   const [charge, setCharge] = useState(0);
   const [atoms, setAtoms] = useState<AtomModel[]>([]);
   const [bondLog, setBondLog] = useState<string[]>([]);
+  const [filterClass, setFilterClass] = useState<string>('all');
 
-  const element = ELEMENTS.find((e) => e.symbol === selectedSymbol)!;
+  const element = PERIODIC_TABLE.find((e) => e.symbol === selectedSymbol)!;
 
   const currentAtom = useMemo(
     () => buildAtom(element, { neutrons, charge }),
     [element, neutrons, charge],
   );
+
+  const filteredElements = useMemo(() => {
+    if (filterClass === 'all') return PERIODIC_TABLE;
+    if (filterClass === 'radioactive') return PERIODIC_TABLE.filter((e) => e.radioactive);
+    return PERIODIC_TABLE.filter((e) => e.classification.includes(filterClass));
+  }, [filterClass]);
 
   const addAtom = () => setAtoms((a) => [...a, { ...currentAtom, id: `AT-${a.length}` }]);
 
@@ -60,13 +68,19 @@ export function AtomicLabPage() {
     }
   };
 
+  const selectElement = (el: FullElementDef) => {
+    setSelectedSymbol(el.symbol);
+    setNeutrons(el.defaultNeutrons);
+    setCharge(0);
+  };
+
   const massNumber = currentAtom.protons + currentAtom.neutrons;
 
   return (
     <div className="atomic-lab-page">
       <PageHeader
         title="Atomic Lab"
-        subtitle="Educational atomic and bonding exploration"
+        subtitle="Interactive periodic table — all 118 elements"
         actions={<EvidenceBadge level="model-derived" />}
       />
 
@@ -75,24 +89,55 @@ export function AtomicLabPage() {
       </Card>
 
       <div className="atomic-layout">
-        <Card title="Periodic Table (Starter Set)">
-          <div className="element-grid">
-            {ELEMENTS.map((el) => (
-              <button
-                key={el.symbol}
-                type="button"
-                className={`element-btn ${selectedSymbol === el.symbol ? 'active' : ''}`}
-                onClick={() => {
-                  setSelectedSymbol(el.symbol);
-                  setNeutrons(el.defaultNeutrons);
-                  setCharge(0);
-                }}
-              >
-                <span className="el-symbol">{el.symbol}</span>
-                <span className="el-num">{el.atomicNumber}</span>
+        <Card title="Periodic Table (118 Elements)" className="span-2">
+          <div className="periodic-filters">
+            {['all', 'nonmetal', 'metal', 'transition metal', 'noble gas', 'halogen', 'radioactive'].map((f) => (
+              <button key={f} type="button" className={`filter-btn ${filterClass === f ? 'active' : ''}`} onClick={() => setFilterClass(f)}>
+                {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
               </button>
             ))}
           </div>
+          <div className="periodic-table-grid">
+            {filteredElements.map((el) => {
+              const pos = getTablePosition(el);
+              return (
+                <button
+                  key={el.symbol}
+                  type="button"
+                  className={`element-btn periodic-cell ${selectedSymbol === el.symbol ? 'active' : ''} ${el.radioactive ? 'radioactive' : ''} cls-${el.classification.replace(/\s+/g, '-')}`}
+                  style={{ gridRow: pos.row, gridColumn: pos.col }}
+                  onClick={() => selectElement(el)}
+                  title={`${el.name} — ${el.classification}`}
+                >
+                  <span className="el-num">{el.atomicNumber}</span>
+                  <span className="el-symbol">{el.symbol}</span>
+                  <span className="el-mass">{el.atomicMass.toFixed(el.atomicMass < 10 ? 3 : 1)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+
+        <Card title="Element Details">
+          <dl className="detail-dl">
+            <dt>Element</dt><dd>{element.name} ({element.symbol})</dd>
+            <dt>Atomic number</dt><dd>{element.atomicNumber}</dd>
+            <dt>Atomic mass</dt><dd>{element.atomicMass} u</dd>
+            <dt>Group</dt><dd>{element.group}</dd>
+            <dt>Period</dt><dd>{element.period}</dd>
+            <dt>Classification</dt><dd>{element.classification}</dd>
+            <dt>Electron configuration</dt><dd>{element.electronConfig} (simplified reference)</dd>
+            <dt>Stability</dt><dd>{element.radioactive ? 'Radioactive isotopes known' : 'Stable isotopes predominate'}</dd>
+            {element.radioactive && (
+              <>
+                <dt>Half-life</dt><dd>{element.halfLife ?? 'Isotope-dependent'}</dd>
+                <dt>Decay mode</dt><dd>{element.decayMode ?? 'Reference data'}</dd>
+              </>
+            )}
+          </dl>
+          {element.radioactive && (
+            <p className="text-muted warn-text">Radioactive reference data only — no acquisition or handling instructions.</p>
+          )}
         </Card>
 
         <Card title="Atom Builder">
@@ -103,8 +148,6 @@ export function AtomicLabPage() {
             </div>
           </div>
           <dl className="detail-dl">
-            <dt>Element</dt><dd>{element.name} ({element.symbol})</dd>
-            <dt>Atomic number</dt><dd>{currentAtom.atomicNumber}</dd>
             <dt>Mass number</dt><dd>{massNumber}</dd>
             <dt>Charge</dt><dd>{charge > 0 ? `+${charge}` : charge}</dd>
             <dt>Electrons</dt><dd>{currentAtom.electrons}</dd>
@@ -117,7 +160,7 @@ export function AtomicLabPage() {
                 standard: 'Neutron count defines the isotope and mass number.',
                 technical: 'Neutron number (N) with proton number (Z) determines nuclide identity.',
               }} /> {neutrons}
-              <input type="range" min={0} max={30} value={neutrons} onChange={(e) => setNeutrons(parseInt(e.target.value, 10))} />
+              <input type="range" min={0} max={Math.max(30, element.defaultNeutrons + 20)} value={neutrons} onChange={(e) => setNeutrons(parseInt(e.target.value, 10))} />
             </label>
             <label>
               <ParameterHelp label="Ionic charge" help={{

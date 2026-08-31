@@ -1,22 +1,31 @@
+import { useState } from 'react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { useAppState } from '../store/AppContext';
 import { LanguageControl } from '../components/ui/LanguageControl';
 
+const STORAGE_KEYS = ['genesis-lab-state-v1', 'genesis-lab-state-v2'];
+
 export function SettingsPage() {
   const { state, dispatch } = useAppState();
   const { settings } = state;
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const update = (partial: Partial<typeof settings>) => {
     dispatch({ type: 'UPDATE_SETTINGS', payload: partial });
   };
 
   const clearLocalData = () => {
-    if (window.confirm('Clear all locally saved experiments, samples, and notebook entries? Demo data will reload on next refresh.')) {
-      localStorage.removeItem('genesis-lab-state-v1');
-      window.location.reload();
+    if (!confirmClear) {
+      setConfirmClear(true);
+      return;
     }
+    for (const key of STORAGE_KEYS) {
+      localStorage.removeItem(key);
+    }
+    dispatch({ type: 'SET_GENOME_UPLOAD', payload: null });
+    window.location.reload();
   };
 
   return (
@@ -47,6 +56,25 @@ export function SettingsPage() {
               onChange={(e) =>
                 update({ simulationSpeedDefault: parseFloat(e.target.value) })
               }
+            />
+          </label>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={settings.autoControlEnabled}
+              onChange={(e) => update({ autoControlEnabled: e.target.checked })}
+            />
+            Auto-control: ON by default
+          </label>
+          <label>
+            Replicate count: {settings.replicateCount}
+            <input
+              type="range"
+              min="1"
+              max="5"
+              step="1"
+              value={settings.replicateCount}
+              onChange={(e) => update({ replicateCount: parseInt(e.target.value, 10) })}
             />
           </label>
         </Card>
@@ -81,19 +109,37 @@ export function SettingsPage() {
 
         <Card title="Data Management">
           <p className="text-muted">
-            All data is stored locally in your browser. No cloud sync in Phase 1.
+            All data is stored locally in your browser. Genomic uploads are processed on-device only.
           </p>
-          <Button variant="danger" onClick={clearLocalData}>
-            Clear Local Data
-          </Button>
+          {confirmClear ? (
+            <div className="clear-data-confirm">
+              <p><strong>The following will be permanently removed:</strong></p>
+              <ul>
+                <li>Saved samples and experiments</li>
+                <li>Simulation results and runs</li>
+                <li>Research notebook entries</li>
+                <li>Uploaded genomic data and simulation copies</li>
+                <li>Therapeutic designs and project state</li>
+              </ul>
+              <div className="clear-data-actions">
+                <Button variant="danger" onClick={clearLocalData}>Confirm Clear All</Button>
+                <Button variant="secondary" onClick={() => setConfirmClear(false)}>Cancel</Button>
+              </div>
+            </div>
+          ) : (
+            <Button variant="danger" onClick={clearLocalData}>
+              Clear Local Data
+            </Button>
+          )}
         </Card>
 
         <Card title="About">
           <dl className="detail-dl">
             <dt>Application</dt><dd>Genesis Lab</dd>
-            <dt>Version</dt><dd>Phase 2 — Expanded</dd>
+            <dt>Version</dt><dd>Phase 3 — Connected Lab</dd>
             <dt>Simulation Engine</dt><dd>Prototype v1.0 (Educational Model)</dd>
             <dt>Storage</dt><dd>Local-first (browser localStorage)</dd>
+            <dt>Genomic processing</dt><dd>Local-only — no external transmission</dd>
           </dl>
         </Card>
       </div>

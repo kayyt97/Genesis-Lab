@@ -73,4 +73,28 @@ export const CURATED_PATHWAYS: PathwayModel[] = [
       { from: 'l-cell', to: 'l-pheno' },
     ],
   },
+  {
+    id: 'PATH-HTT',
+    name: 'Huntingtin / Neuronal Function',
+    description: {
+      simple: 'How the HTT gene relates to nerve cell proteins and cell health. Educational reference — not clinical diagnosis.',
+      standard: 'Reference pathway linking HTT expression to neuronal protein function and cellular phenotypes.',
+      technical: 'Curated reference model: HTT transcription → huntingtin protein → vesicular transport/neuronal survival processes.',
+    },
+    nodes: [
+      { id: 'h-gene', type: 'gene', label: 'HTT', description: { simple: 'The huntingtin gene on chromosome 4.', standard: 'HTT gene locus.', technical: 'HTT coding sequence at 4p16.3.' }, linkedGeneId: 'GEN-HTT' },
+      { id: 'h-rna', type: 'rna', label: 'HTT mRNA', description: { simple: 'RNA copy of the HTT gene.', standard: 'Processed HTT transcript.', technical: 'Mature mRNA exported to cytoplasm.' } },
+      { id: 'h-protein', type: 'protein', label: 'Huntingtin protein', description: { simple: 'Protein made from HTT, important in nerve cells.', standard: 'Scaffold protein in neurons.', technical: 'Htt protein with polyglutamine tract (reference).' } },
+      { id: 'h-path', type: 'pathway', label: 'Neuronal transport & survival', description: { simple: 'Processes that keep nerve cells working.', standard: 'Axonal transport and survival signalling.', technical: 'Dynein-mediated transport and BDNF pathways (reference).' } },
+      { id: 'h-cell', type: 'cell', label: 'Neuron', description: { simple: 'A nerve cell.', standard: 'Neuronal cell model.', technical: 'Medium spiny neuron reference.' } },
+      { id: 'h-pheno', type: 'phenotype', label: 'Neuronal function / disease models', description: { simple: 'How well nerve cells function — studied in research, not diagnosed here.', standard: 'Neuronal viability and motor function phenotypes in literature.', technical: 'Model phenotypes associated with HTT biology in research contexts.' } },
+    ],
+    edges: [
+      { from: 'h-gene', to: 'h-rna', label: 'transcription' },
+      { from: 'h-rna', to: 'h-protein', label: 'translation' },
+      { from: 'h-protein', to: 'h-path', label: 'activity' },
+      { from: 'h-path', to: 'h-cell', label: 'regulation' },
+      { from: 'h-cell', to: 'h-pheno', label: 'outcome' },
+    ],
+  },
 ];

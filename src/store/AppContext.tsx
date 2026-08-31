@@ -21,6 +21,7 @@ import type {
   TherapeuticDesign,
   LabHandoffPayload,
   SimulationRun,
+  MicroscopeSpecimen,
 } from '../types/scientific';
 import {
   demoSamples,
@@ -46,6 +47,7 @@ interface AppState {
   therapeuticDesigns: TherapeuticDesign[];
   labHandoff: LabHandoffPayload | null;
   priorSimulationSnapshot: Simulation | null;
+  microscopeSpecimen: MicroscopeSpecimen | null;
 }
 
 type AppAction =
@@ -76,6 +78,7 @@ type AppAction =
   | { type: 'ADD_THERAPEUTIC'; payload: TherapeuticDesign }
   | { type: 'UPDATE_THERAPEUTIC'; payload: TherapeuticDesign }
   | { type: 'SET_LAB_HANDOFF'; payload: LabHandoffPayload | null }
+  | { type: 'SET_MICROSCOPE_SPECIMEN'; payload: MicroscopeSpecimen | null }
   | { type: 'LOAD_STATE'; payload: Partial<AppState> };
 
 const defaultSettings: AppSettings = {
@@ -86,6 +89,8 @@ const defaultSettings: AppSettings = {
   currentProjectName: 'Demonstration Project',
   languageLevel: 'standard',
   activeProjectId: null,
+  autoControlEnabled: true,
+  replicateCount: 1,
 };
 
 const demoProject: ResearchProject = {
@@ -116,6 +121,7 @@ const initialState: AppState = {
   therapeuticDesigns: [],
   labHandoff: null,
   priorSimulationSnapshot: null,
+  microscopeSpecimen: null,
 };
 
 function duplicateExperiment(exp: Experiment): Experiment {
@@ -259,6 +265,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
       };
     case 'SET_LAB_HANDOFF':
       return { ...state, labHandoff: action.payload };
+    case 'SET_MICROSCOPE_SPECIMEN':
+      return { ...state, microscopeSpecimen: action.payload };
     case 'LOAD_STATE': {
       const loaded = action.payload;
       return {
@@ -379,6 +387,24 @@ export function sendToVirtualLab(
       targetModule: 'Virtual Lab',
       entityId,
       label,
+      timestamp: new Date().toISOString(),
+    },
+  });
+}
+
+export function sendToMicroscope(
+  dispatch: Dispatch<AppAction>,
+  specimen: MicroscopeSpecimen,
+) {
+  dispatch({ type: 'SET_MICROSCOPE_SPECIMEN', payload: specimen });
+  dispatch({
+    type: 'SET_LAB_HANDOFF',
+    payload: {
+      type: 'molecule',
+      sourceModule: 'Virtual Lab',
+      targetModule: 'Virtual Microscope',
+      entityId: specimen.id,
+      label: specimen.label,
       timestamp: new Date().toISOString(),
     },
   });

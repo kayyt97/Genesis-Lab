@@ -64,6 +64,17 @@ export interface GeneReference {
   pathwayIds: string[];
 }
 
+export interface GenomeImportReport {
+  totalRowsRead: number;
+  successfullyParsed: number;
+  chromosomeAssigned: number;
+  unsupportedUnmapped: number;
+  malformedSkipped: number;
+  chromosomeCoverage: Record<string, number>;
+  detectedBuild: string;
+  exclusionReasons: { reason: string; count: number }[];
+}
+
 export interface GenomeUpload {
   id: string;
   fileName: string;
@@ -72,6 +83,7 @@ export interface GenomeUpload {
   variants: GenomicVariant[];
   variantCount: number;
   isPersisted: boolean;
+  importReport?: GenomeImportReport;
 }
 
 export interface GenomeSimulationCopy {
@@ -225,6 +237,24 @@ export interface EquipmentDefinition {
 }
 
 export type MicroscopeMagnification = 40 | 100 | 400 | 1000;
+
+export interface MicroscopeSpecimen {
+  id: string;
+  label: string;
+  sourceType: 'reference' | 'virtual-lab' | 'sample' | 'experiment';
+  sourceId?: string;
+  organismCategory?: string;
+  morphologySupported: boolean;
+  simulatedViability?: number;
+  notes?: string;
+}
+
+export interface LabWorkspaceState {
+  activeSpecimenId: string | null;
+  compareSpecimenId: string | null;
+  autoControlEnabled: boolean;
+  controlEnvironment?: EnvironmentConditions;
+}
 
 export interface ComparisonSummary {
   differingVariables: string[];

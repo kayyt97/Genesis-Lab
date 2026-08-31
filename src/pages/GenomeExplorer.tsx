@@ -1,14 +1,16 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { EvidenceBadge, ObservedMarker, ProvenanceBadge } from '../components/ui/EvidenceBadge';
+import { DnaHelixViewer } from '../components/genome/DnaHelixViewer';
 import { resolveTiered } from '../content/language';
 import { GENOME_PRIVACY_NOTICE, GENOME_NOT_DIAGNOSIS } from '../content/language';
 import { useLanguage } from '../components/ui/LanguageControl';
 import { useAppState } from '../store/AppContext';
 import { parseGenomeFile, createSimulationCopy } from '../services/genomeParser';
+import { getChromosomeVariants } from '../services/chromosomeUtils';
 import { CHROMOSOMES, REFERENCE_GENES, findVariantsInGene } from '../data/genes';
 import type { GenomicVariant } from '../types/scientific';
 
@@ -19,9 +21,11 @@ export function GenomeExplorerPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [selectedChr, setSelectedChr] = useState('17');
   const [selectedGeneId, setSelectedGeneId] = useState(REFERENCE_GENES[0]?.id ?? '');
+  const [geneSearch, setGeneSearch] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [simCopyName, setSimCopyName] = useState('Simulation Copy');
+  const [viewMode, setViewMode] = useState<'reference' | 'uploaded'>('uploaded');
 
   const upload = state.genomeUpload;
   const selectedGene = REFERENCE_GENES.find((g) => g.id === selectedGeneId);
@@ -29,9 +33,30 @@ export function GenomeExplorerPage() {
     ? findVariantsInGene(selectedGene.id, upload.variants)
     : [];
 
-  const chrVariants = upload
-    ? upload.variants.filter((v) => v.chromosome.replace(/^chr/i, '') === selectedChr)
-    : [];
+  const chrVariants = upload ? getChromosomeVariants(upload.variants, selectedChr) : [];
+
+  const chrCounts = useMemo(() => {
+    if (!upload) return {} as Record<string, number>;
+    if (upload.importReport?.chromosomeCoverage) {
+      return upload.importReport.chromosomeCoverage;
+    }
+    const counts: Record<string, number> = {};
+    for (const chr of CHROMOSOMES) {
+      counts[chr.id] = getChromosomeVariants(upload.variants, chr.id).length;
+    }
+    return counts;
+  }, [upload]);
+
+  const geneSearchResults = useMemo(() => {
+    const q = geneSearch.trim().toLowerCase();
+    if (!q) return [];
+    return REFERENCE_GENES.filter(
+      (g) =>
+        g.symbol.toLowerCase().includes(q) ||
+        g.name.toLowerCase().includes(q) ||
+        g.id.toLowerCase().includes(q),
+    );
+  }, [geneSearch]);
 
   const handleUpload = async (file: File) => {
     setLoading(true);
@@ -43,6 +68,14 @@ export function GenomeExplorerPage() {
       return;
     }
     dispatch({ type: 'SET_GENOME_UPLOAD', payload: result.upload });
+  };
+
+  const jumpToGene = (geneId: string) => {
+    const gene = REFERENCE_GENES.find((g) => g.id === geneId);
+    if (!gene) return;
+    setSelectedGeneId(geneId);
+    setSelectedChr(gene.chromosome);
+    setGeneSearch('');
   };
 
   const createSimCopy = () => {
@@ -67,6 +100,8 @@ export function GenomeExplorerPage() {
     };
     dispatch({ type: 'UPDATE_GENOME_SIM_COPY', payload: updated });
   };
+
+  const report = upload?.importReport;
 
   return (
     <div className="genome-page">
@@ -121,13 +156,81 @@ export function GenomeExplorerPage() {
         )}
       </Card>
 
+      {report && (
+        <Card title="Import Quality Report">
+          <dl className="detail-dl import-report-dl">
+            <dt>Total rows read</dt><dd>{report.totalRowsRead.toLocaleString()}</dd>
+            <dt>Successfully parsed</dt><dd>{report.successfullyParsed.toLocaleString()}</dd>
+            <dt>Chromosome-assigned</dt><dd>{report.chromosomeAssigned.toLocaleString()}</dd>
+            <dt>Unsupported / unmapped</dt><dd>{report.unsupportedUnmapped.toLocaleString()}</dd>
+            <dt>Malformed / skipped</dt><dd>{report.malformedSkipped.toLocaleString()}</dd>
+            <dt>Detected genome build</dt><dd>{report.detectedBuild}</dd>
+          </dl>
+          {report.exclusionReasons.length > 0 && (
+            <>
+              <h4>Exclusion reasons</h4>
+              <ul className="exclusion-list">
+                {report.exclusionReasons.map((r) => (
+                  <li key={r.reason}>{r.reason}: {r.count.toLocaleString()}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          <p className="text-muted">
+            Chromosome totals should reconcile with assigned records. Unassigned records are listed above with reasons.
+          </p>
+        </Card>
+      )}
+
+      <Card title="Interactive Genome Visualisation">
+        <div className="genome-view-toggle">
+          <button type="button" className={`category-tab ${viewMode === 'reference' ? 'active' : ''}`} onClick={() => setViewMode('reference')}>
+            Reference
+          </button>
+          <button type="button" className={`category-tab ${viewMode === 'uploaded' ? 'active' : ''}`} onClick={() => setViewMode('uploaded')} disabled={!upload}>
+            Uploaded sample
+          </button>
+        </div>
+        <DnaHelixViewer
+          variants={viewMode === 'uploaded' && upload ? upload.variants : []}
+          selectedGeneId={selectedGeneId}
+          onSelectGene={jumpToGene}
+          highlightChromosome={selectedChr}
+        />
+        <p className="text-muted">
+          Navigate: Genome → Chromosome → Region → Gene → Variant. Sequence differences appear as markers, not helix deformation.
+        </p>
+      </Card>
+
+      <Card title="Search Genes">
+        <input
+          type="search"
+          className="search-input"
+          placeholder="Search e.g. HTT, BRCA1, CFTR…"
+          value={geneSearch}
+          onChange={(e) => setGeneSearch(e.target.value)}
+        />
+        {geneSearchResults.length > 0 && (
+          <ul className="search-results">
+            {geneSearchResults.map((g) => (
+              <li key={g.id}>
+                <button type="button" className="search-result-btn" onClick={() => jumpToGene(g.id)}>
+                  {g.symbol} — Chr {g.chromosome}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {geneSearch.trim() && geneSearchResults.length === 0 && (
+          <p className="text-muted">No reference genes match. Only curated reference genes are searchable.</p>
+        )}
+      </Card>
+
       <div className="genome-layout">
         <Card title="Chromosomes">
           <div className="chr-grid">
             {CHROMOSOMES.map((chr) => {
-              const count = upload
-                ? upload.variants.filter((v) => v.chromosome.replace(/^chr/i, '') === chr.id).length
-                : 0;
+              const count = chrCounts[chr.id] ?? 0;
               return (
                 <button
                   key={chr.id}
@@ -136,7 +239,7 @@ export function GenomeExplorerPage() {
                   onClick={() => setSelectedChr(chr.id)}
                 >
                   {chr.label}
-                  {upload && <span className="chr-count">{count}</span>}
+                  {upload && <span className="chr-count">{count.toLocaleString()}</span>}
                 </button>
               );
             })}
@@ -169,7 +272,7 @@ export function GenomeExplorerPage() {
                 </tbody>
               </table>
               {chrVariants.length > 50 && (
-                <p className="text-muted">Showing first 50 of {chrVariants.length} variants.</p>
+                <p className="text-muted">Showing first 50 of {chrVariants.length.toLocaleString()} variants.</p>
               )}
             </div>
           )}
@@ -183,7 +286,7 @@ export function GenomeExplorerPage() {
               key={g.id}
               type="button"
               className={`gene-tab ${selectedGeneId === g.id ? 'active' : ''}`}
-              onClick={() => setSelectedGeneId(g.id)}
+              onClick={() => jumpToGene(g.id)}
             >
               {g.symbol}
             </button>
@@ -215,7 +318,7 @@ export function GenomeExplorerPage() {
                 ))}
               </ul>
             )}
-            <Button variant="ghost" onClick={() => navigate('/pathway-explorer')}>
+            <Button variant="ghost" onClick={() => navigate(`/pathway-explorer?gene=${selectedGene.symbol}`)}>
               View related pathways →
             </Button>
           </div>
