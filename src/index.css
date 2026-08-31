@@ -228,7 +228,7 @@ body {
   background: var(--bg-secondary);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .card-header {
@@ -1118,3 +1118,391 @@ input[type="range"] {
   .env-controls-grid { grid-template-columns: 1fr; }
   .charts-row { grid-template-columns: 1fr; }
 }
+
+/* Phase 2 — Help popover (portal, no clip) */
+.top-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 32px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.language-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.language-control-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.language-control-buttons {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 2px;
+}
+
+.language-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  font-family: inherit;
+}
+
+.language-btn.active {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+
+.help-popover-wrapper {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+.help-popover-trigger {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  font-size: 11px;
+  color: var(--accent);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+}
+
+.help-popover {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.help-popover-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.help-popover-body { line-height: 1.5; }
+
+.glossary-term-inline {
+  display: inline;
+}
+
+.glossary-help-icon, .param-help-icon {
+  display: inline-flex;
+}
+
+.env-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Evidence badges */
+.evidence-badge, .provenance-badge, .observed-marker {
+  display: inline-block;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.evidence-established { background: rgba(74,222,128,0.15); color: var(--success); }
+.evidence-reference-data { background: rgba(56,189,248,0.15); color: var(--accent); }
+.evidence-model-derived { background: rgba(167,139,250,0.15); color: var(--simulation); }
+.evidence-estimated { background: rgba(251,191,36,0.15); color: var(--warning); }
+.evidence-speculative { background: rgba(248,113,113,0.12); color: var(--danger); }
+.evidence-insufficient-information { background: rgba(148,163,184,0.15); color: var(--text-muted); }
+
+.provenance-real-user-data { background: rgba(74,222,128,0.12); color: var(--success); }
+.provenance-reference-information { background: rgba(56,189,248,0.12); color: var(--accent); }
+.provenance-model-input { background: rgba(251,191,36,0.12); color: var(--warning); }
+.provenance-model-output { background: rgba(167,139,250,0.12); color: var(--simulation); }
+
+.observed-yes { background: rgba(74,222,128,0.12); color: var(--success); text-transform: none; font-weight: 500; }
+.observed-no { background: rgba(148,163,184,0.12); color: var(--text-muted); text-transform: none; font-weight: 500; }
+
+/* Atomic Lab */
+.atomic-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.element-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.element-btn {
+  padding: 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text-primary);
+  font-family: inherit;
+  text-align: center;
+}
+
+.element-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-glow);
+}
+
+.el-symbol { display: block; font-weight: 600; font-size: 16px; }
+.el-num { display: block; font-size: 10px; color: var(--text-muted); }
+
+.atom-diagram {
+  width: 160px;
+  height: 160px;
+  margin: 0 auto 16px;
+  position: relative;
+  border: 2px dashed var(--border);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nucleus {
+  background: var(--accent-glow);
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  padding: 16px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  text-align: center;
+}
+
+.electron-shell {
+  position: absolute;
+  bottom: 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.limitations-card { margin-bottom: 16px; border-color: rgba(251,191,36,0.3); }
+
+/* Genome */
+.genome-notices {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.genome-layout, .pathway-layout, .therapeutic-layout, .projects-layout, .equipment-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.chr-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.chr-btn {
+  padding: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.chr-btn.active { border-color: var(--accent); color: var(--accent); }
+.chr-count { display: block; font-size: 10px; color: var(--text-muted); }
+
+.gene-tabs, .pathway-select { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.gene-tab {
+  padding: 6px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+}
+.gene-tab.active { border-color: var(--accent); color: var(--accent); }
+
+.sim-copy-notice {
+  background: rgba(167,139,250,0.1);
+  border: 1px solid rgba(167,139,250,0.3);
+  padding: 10px;
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.sim-copy-card {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--bg-primary);
+  border: 1px dashed var(--simulation);
+  border-radius: var(--radius);
+}
+
+.simulation-badge-inline {
+  font-size: 9px;
+  background: rgba(167,139,250,0.2);
+  color: var(--simulation);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.error-text { color: var(--danger); font-size: 13px; }
+
+/* Pathway flow */
+.pathway-flow { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 16px; }
+.pathway-flow-item { display: flex; flex-direction: column; align-items: center; }
+.pathway-node {
+  padding: 10px 20px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text-primary);
+  font-family: inherit;
+  min-width: 180px;
+  text-align: center;
+}
+.pathway-node.active { border-color: var(--accent); background: var(--accent-glow); }
+.node-type { display: block; font-size: 9px; text-transform: uppercase; color: var(--text-muted); }
+.pathway-arrow { color: var(--text-muted); font-size: 18px; }
+.pathway-links, .handoff-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+/* Timeline */
+.timeline-scrubber { margin-bottom: 16px; }
+.timeline-label { font-size: 12px; color: var(--text-secondary); display: block; }
+.timeline-marks { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.timeline-mark {
+  padding: 4px 8px;
+  font-size: 11px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.handoff-banner {
+  background: rgba(56,189,248,0.1);
+  border: 1px solid rgba(56,189,248,0.3);
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.handoff-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 18px;
+}
+
+/* Microscope */
+.mag-buttons { display: flex; gap: 8px; }
+.mag-btn {
+  padding: 8px 16px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+}
+.mag-btn.active { border-color: var(--accent); color: var(--accent); }
+
+.microscope-view {
+  width: 300px;
+  height: 300px;
+  margin: 0 auto;
+  border-radius: 50%;
+  border: 4px solid var(--border);
+  overflow: hidden;
+  background: radial-gradient(circle, #1a3a2a, #0a0e14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: center;
+}
+
+.microscope-cell {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: rgba(102,187,106,0.3);
+  position: relative;
+}
+
+.microscope-structure {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.4);
+  cursor: pointer;
+  background: transparent;
+}
+.microscope-nucleus { width: 40px; height: 40px; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(167,139,250,0.4); }
+.microscope-membrane { width: 100%; height: 100%; top: 0; left: 0; border-radius: 50%; }
+.microscope-cell { width: 80px; height: 80px; top: 30%; left: 30%; background: rgba(79,195,247,0.2); }
+
+.future-tag { font-style: italic; margin-top: 12px; }
+.teaching-feedback { margin-top: 16px; padding: 12px; border-radius: var(--radius); }
+.teaching-feedback.correct { background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.3); }
+.teaching-feedback.incorrect { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); }
+
+.assistant-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.assistant-response { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-subtle); }
+
+.mol-2d-view { margin-bottom: 16px; }
+.mol-svg { width: 100%; max-width: 200px; height: auto; }
+
+.project-detail { display: flex; flex-direction: column; gap: 16px; }
+.verdict-buttons { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.file-input { margin-bottom: 12px; font-size: 13px; color: var(--text-secondary); }
+.variant-table-wrap { max-height: 300px; overflow: auto; }
+.bond-log { list-style: none; margin-top: 12px; font-size: 12px; color: var(--text-secondary); }
+.connected-modules { margin-bottom: 16px; }
+.pip-helper { margin-top: 16px; padding: 12px; background: var(--bg-primary); border-radius: var(--radius); }
+
+.page-container { overflow: visible; }
+.card-body { overflow: visible; }

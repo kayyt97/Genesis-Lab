@@ -6,6 +6,7 @@ import type {
   SimulationSnapshot,
   DataSourceMeta,
 } from '../types';
+import { seededRange, generateSeed } from '../services/seededRandom';
 
 export const SIMULATION_METADATA: DataSourceMeta = {
   sourceType: 'simulation',
@@ -74,6 +75,7 @@ export function createSimulation(
   organismId: string,
   environment: EnvironmentConditions,
   experimentId?: string,
+  opts?: { seed?: number; variabilityEnabled?: boolean; conditionId?: string },
 ): Simulation {
   return {
     id: `SIM-${Date.now()}`,
@@ -88,6 +90,9 @@ export function createSimulation(
     events: [],
     snapshots: [],
     metadata: SIMULATION_METADATA,
+    seed: opts?.seed ?? generateSeed(),
+    variabilityEnabled: opts?.variabilityEnabled ?? false,
+    conditionId: opts?.conditionId,
   };
 }
 
@@ -154,8 +159,16 @@ export function simulationTick(sim: Simulation): Simulation {
   const populationDelta = prev.population * growthFactor * Math.max(logisticModifier, 0);
   const newPopulation = Math.max(0, prev.population + populationDelta);
 
+  // Optional reproducible variability
+  let viabilityNoise = 0;
+  let replicationNoise = 1;
+  if (sim.variabilityEnabled && sim.seed !== undefined) {
+    viabilityNoise = seededRange(sim.seed, -0.5, 0.5, newTick);
+    replicationNoise = seededRange(sim.seed, 0.95, 1.05, newTick + 1000);
+  }
+
   // Viability decreases with stress
-  const viabilityDelta = -stress * 2 * dt + (stress < 0.2 ? 0.5 * dt : 0);
+  const viabilityDelta = -stress * 2 * dt + (stress < 0.2 ? 0.5 * dt : 0) + viabilityNoise * dt;
   const newViability = clamp(prev.viability + viabilityDelta, 0, 100);
 
   // Stress accumulates or recovers
@@ -173,7 +186,7 @@ export function simulationTick(sim: Simulation): Simulation {
   const newState: OrganismSimulationState = {
     population: newPopulation,
     viability: newViability,
-    replicationRate: effectiveReplication,
+    replicationRate: effectiveReplication * replicationNoise,
     stress: newStress,
     mutationIndicator: newMutation,
     environmentalTolerance: newTolerance,
@@ -257,7 +270,11 @@ export function resumeSimulation(sim: Simulation): Simulation {
 
 export function resetSimulation(sim: Simulation): Simulation {
   return {
-    ...createSimulation(sim.organismId, sim.environment, sim.experimentId),
+    ...createSimulation(sim.organismId, sim.environment, sim.experimentId, {
+      seed: sim.seed,
+      variabilityEnabled: sim.variabilityEnabled,
+      conditionId: sim.conditionId,
+    }),
     id: sim.id,
     speed: sim.speed,
   };

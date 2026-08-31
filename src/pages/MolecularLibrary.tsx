@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 import { GlossaryTerm } from '../components/ui/GlossaryTerm';
-import { demoCompounds, molecularPlaceholders } from '../data/demoData';
+import { demoCompounds } from '../data/demoData';
 
 export function MolecularLibraryPage() {
   const [selectedId, setSelectedId] = useState<string | null>(demoCompounds[0]?.id ?? null);
@@ -14,6 +16,14 @@ export function MolecularLibraryPage() {
         title="Molecular Library"
         subtitle="Compounds and molecular reference data for scientific modelling"
       />
+
+      <Card title="Connected Modules" className="connected-modules">
+        <p className="text-muted">Explore atoms and molecules in dedicated modules:</p>
+        <div className="handoff-actions">
+          <Link to="/atomic-lab"><Button variant="secondary">Open Atomic Lab</Button></Link>
+          <Link to="/molecule-explorer"><Button variant="secondary">Open Molecule Explorer</Button></Link>
+        </div>
+      </Card>
 
       <div className="molecular-layout">
         <Card title="Compounds">
@@ -51,27 +61,6 @@ export function MolecularLibraryPage() {
           </Card>
         )}
       </div>
-
-      <Card title="Molecular / Atomic Modelling — Future Module" className="future-module">
-        <p className="text-muted">
-          Phase 4 will expand Genesis Lab with molecular structure viewing, atomic modelling,
-          protein interactions, and binding visualisation. Phase 1 provides architecture placeholders only.
-        </p>
-        <div className="placeholder-grid">
-          {molecularPlaceholders.map((p) => (
-            <div key={p.id} className="placeholder-card">
-              <span className="placeholder-badge">Placeholder</span>
-              <h4>{p.name}</h4>
-              <p>{p.description}</p>
-              <ul>
-                {p.futureCapabilities.map((cap) => (
-                  <li key={cap}>{cap}</li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </Card>
     </div>
   );
 }

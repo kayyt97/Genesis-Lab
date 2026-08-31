@@ -4,7 +4,9 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Metric } from '../components/ui/Metric';
 import { SimpleLineChart } from '../components/ui/Metric';
-import { GlossaryTerm } from '../components/ui/GlossaryTerm';
+import { GlossaryTerm, ParameterHelp } from '../components/ui/GlossaryTerm';
+import { TimelineScrubber } from '../components/ui/TimelineScrubber';
+import { PARAM_HELP } from '../content/parameterHelp';
 import { SimulationBadge } from '../components/ui/DisclaimerBanner';
 import { useAppState } from '../store/AppContext';
 import { demoOrganisms, defaultEnvironment } from '../data/demoData';
@@ -36,7 +38,13 @@ const ENV_LABELS: { key: keyof EnvironmentConditions; label: string; unit: strin
 export function VirtualLabPage() {
   const { state, dispatch } = useAppState();
   const [selectedOrganism, setSelectedOrganism] = useState('ORG-001');
+  const [scrubTime, setScrubTime] = useState<number | null>(null);
   const sim = state.activeSimulation;
+  const handoff = state.labHandoff;
+
+  const displayState = scrubTime !== null && sim
+    ? sim.snapshots.find((s) => s.timeHours === scrubTime)?.organismState ?? sim.organismState
+    : sim?.organismState;
 
   const initSimulation = useCallback(() => {
     const newSim = createSimulation(selectedOrganism, defaultEnvironment);
@@ -107,6 +115,13 @@ export function VirtualLabPage() {
         actions={<SimulationBadge />}
       />
 
+      {handoff && handoff.targetModule === 'Virtual Lab' && (
+        <div className="handoff-banner">
+          Received from {handoff.sourceModule}: <strong>{handoff.label}</strong>
+          <button type="button" className="handoff-dismiss" onClick={() => dispatch({ type: 'SET_LAB_HANDOFF', payload: null })}>×</button>
+        </div>
+      )}
+
       <div className="lab-grid">
         <Card title="Sample / Environment View" className="lab-view-panel">
           <div className="environment-visual">
@@ -173,7 +188,27 @@ export function VirtualLabPage() {
             <Button variant="ghost" onClick={handleStep}>
               Step Forward
             </Button>
+            <Button variant="ghost" onClick={() => dispatch({ type: 'SAVE_SIMULATION_SNAPSHOT' })}>
+              Save Baseline
+            </Button>
           </div>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={sim?.variabilityEnabled ?? false}
+              onChange={(e) => {
+                if (!sim) return;
+                dispatch({
+                  type: 'SET_SIMULATION',
+                  payload: { ...sim, variabilityEnabled: e.target.checked },
+                });
+              }}
+            />
+            Enable experimental variability (seeded, reproducible)
+          </label>
+          {sim?.seed !== undefined && (
+            <p className="text-muted">Simulation seed: {sim.seed}</p>
+          )}
           <div className="speed-control">
             <label>
               Speed: {sim?.speed ?? 1}×
@@ -200,7 +235,10 @@ export function VirtualLabPage() {
             {ENV_LABELS.map(({ key, label, unit, min, max, step, glossary }) => (
               <div key={key} className="env-control">
                 <label>
-                  {glossary ? <GlossaryTerm term={glossary}>{label}</GlossaryTerm> : label}
+                  <span className="env-label-row">
+                    {glossary ? <GlossaryTerm term={glossary}>{label}</GlossaryTerm> : label}
+                    {PARAM_HELP[key] && <ParameterHelp label={label} help={PARAM_HELP[key]} />}
+                  </span>
                   <span className="env-value">
                     {sim?.environment[key] ?? defaultEnvironment[key]}
                     {unit}
@@ -223,18 +261,18 @@ export function VirtualLabPage() {
         </Card>
 
         <Card title="Measurements">
-          {sim ? (
+          {sim && displayState ? (
             <div className="metrics-grid">
-              <Metric label="Population" value={formatPopulation(sim.organismState.population)} />
-              <Metric label="Viability" value={sim.organismState.viability.toFixed(1)} unit="%" />
+              <Metric label="Population" value={formatPopulation(displayState.population)} />
+              <Metric label="Viability" value={displayState.viability.toFixed(1)} unit="%" />
               <Metric
                 label="Replication Rate"
-                value={sim.organismState.replicationRate.toFixed(3)}
+                value={displayState.replicationRate.toFixed(3)}
                 unit="/h"
               />
-              <Metric label="Stress" value={sim.organismState.stress.toFixed(1)} unit="%" variant={sim.organismState.stress > 50 ? 'warning' : 'default'} />
-              <Metric label="Mutation Indicator" value={sim.organismState.mutationIndicator.toFixed(2)} unit="%" />
-              <Metric label="Env. Tolerance" value={sim.organismState.environmentalTolerance.toFixed(1)} unit="%" />
+              <Metric label="Stress" value={displayState.stress.toFixed(1)} unit="%" variant={displayState.stress > 50 ? 'warning' : 'default'} />
+              <Metric label="Mutation Indicator" value={displayState.mutationIndicator.toFixed(2)} unit="%" />
+              <Metric label="Env. Tolerance" value={displayState.environmentalTolerance.toFixed(1)} unit="%" />
             </div>
           ) : (
             <p className="text-muted">Initialize simulation to view measurements.</p>
@@ -242,6 +280,13 @@ export function VirtualLabPage() {
         </Card>
 
         <Card title="Timeline & Observations" className="span-2">
+          {sim && sim.snapshots.length > 0 && (
+            <TimelineScrubber
+              snapshots={sim.snapshots}
+              currentTimeHours={scrubTime ?? sim.timeHours}
+              onSeek={(t) => setScrubTime(t)}
+            />
+          )}
           <div className="charts-row">
             <SimpleLineChart data={viabilityData} label="Viability" color="#66bb6a" yUnit="%" />
             <SimpleLineChart data={populationData} label="Population" color="#4fc3f7" yUnit="×10⁶" />

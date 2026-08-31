@@ -1,67 +1,88 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { findGlossaryEntry } from '../../data/glossary';
+import { getGlossaryText, getGlossaryTitle } from '../../content/language';
+import { HelpPopover } from './HelpPopover';
+import { useLanguage } from './LanguageControl';
 import type { GlossaryEntry } from '../../types';
 
 interface GlossaryTermProps {
   term: string;
   children?: React.ReactNode;
+  helpText?: string;
 }
 
-export function GlossaryTerm({ term, children }: GlossaryTermProps) {
-  const [open, setOpen] = useState(false);
+export function GlossaryTerm({ term, children, helpText }: GlossaryTermProps) {
   const [entry, setEntry] = useState<GlossaryEntry | undefined>();
-  const ref = useRef<HTMLSpanElement>(null);
+  const languageLevel = useLanguage();
 
   useEffect(() => {
     setEntry(findGlossaryEntry(term));
   }, [term]);
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    if (open) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [open]);
-
   const display = children ?? term;
 
-  if (!entry) {
+  if (!entry && !helpText) {
     return <span>{display}</span>;
   }
 
-  return (
-    <span className="glossary-term-wrapper" ref={ref}>
-      <button
-        type="button"
-        className="glossary-term-btn"
-        onClick={() => setOpen(!open)}
-        aria-label={`Definition of ${term}`}
-      >
-        {display}
-        <span className="glossary-info-icon">ⓘ</span>
-      </button>
-      {open && (
-        <div className="glossary-tooltip">
-          <div className="glossary-tooltip-header">
-            <strong>{entry.term}</strong>
-            {entry.unit && <span className="glossary-unit">{entry.unit}</span>}
-          </div>
-          <p className="glossary-plain">{entry.plainEnglish}</p>
-          <p className="glossary-scientific">{entry.scientificDefinition}</p>
-          {entry.example && (
-            <p className="glossary-example">
-              <em>Example:</em> {entry.example}
-            </p>
-          )}
-          <Link to="/glossary" className="glossary-link" onClick={() => setOpen(false)}>
-            View in Glossary →
-          </Link>
-        </div>
+  const definition = entry
+    ? getGlossaryText(entry, languageLevel)
+    : (helpText ?? '');
+  const title = entry ? getGlossaryTitle(entry, languageLevel) : term;
+
+  const popoverContent = (
+    <>
+      <p className="glossary-plain">{definition}</p>
+      {entry?.example && (
+        <p className="glossary-example">
+          <em>Example:</em> {entry.example}
+        </p>
       )}
+      {entry?.unit && (
+        <p className="glossary-unit-line">
+          <strong>Unit:</strong> {entry.unit}
+        </p>
+      )}
+      {entry && (
+        <Link to="/glossary" className="glossary-link">
+          View in Glossary →
+        </Link>
+      )}
+    </>
+  );
+
+  return (
+    <span className="glossary-term-inline">
+      {display}
+      <HelpPopover
+        trigger={<span className="glossary-help-icon" aria-hidden="true">?</span>}
+        title={title}
+        content={popoverContent}
+        ariaLabel={`Help: ${title}`}
+      />
     </span>
+  );
+}
+
+interface ParameterHelpProps {
+  label: string;
+  help: import('../../types/language').TieredText | string;
+}
+
+export function ParameterHelp({ label, help }: ParameterHelpProps) {
+  const languageLevel = useLanguage();
+  const text =
+    typeof help === 'string'
+      ? help
+      : help[languageLevel];
+
+  return (
+    <HelpPopover
+      trigger={<span className="param-help-icon" aria-hidden="true">?</span>}
+      title={label}
+      content={<p className="param-help-text">{text}</p>}
+      ariaLabel={`Help for ${label}`}
+    />
   );
 }

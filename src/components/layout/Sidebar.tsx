@@ -4,11 +4,22 @@ const navItems = [
   { path: '/', label: 'Dashboard', icon: '◈' },
   { path: '/virtual-lab', label: 'Virtual Lab', icon: '⬡' },
   { path: '/experiment-builder', label: 'Experiment Builder', icon: '⚗' },
+  { path: '/hypothesis-builder', label: 'Hypothesis Builder', icon: '◆' },
+  { path: '/projects', label: 'Research Projects', icon: '▦' },
   { path: '/samples', label: 'Samples', icon: '◫' },
   { path: '/organisms', label: 'Organisms', icon: '◎' },
-  { path: '/molecular-library', label: 'Molecular Library', icon: '⬢' },
+  { path: '/atomic-lab', label: 'Atomic Lab', icon: '⚛' },
+  { path: '/molecule-explorer', label: 'Molecule Explorer', icon: '⬢' },
+  { path: '/molecular-library', label: 'Molecular Library', icon: '⬡' },
+  { path: '/genome-explorer', label: 'Genome Explorer', icon: '🧬' },
+  { path: '/pathway-explorer', label: 'Pathway Explorer', icon: '↯' },
+  { path: '/therapeutic-design', label: 'Therapeutic Design', icon: '✚' },
+  { path: '/microscope', label: 'Virtual Microscope', icon: '🔬' },
+  { path: '/equipment', label: 'Equipment', icon: '⚙' },
   { path: '/results', label: 'Results', icon: '▤' },
   { path: '/notebook', label: 'Research Notebook', icon: '▣' },
+  { path: '/assistant', label: 'Research Assistant', icon: '💬' },
+  { path: '/teaching', label: 'Teaching Mode', icon: '📖' },
   { path: '/glossary', label: 'Glossary', icon: '?' },
   { path: '/safety', label: 'Safety', icon: '⚠' },
   { path: '/settings', label: 'Settings', icon: '⚙' },
@@ -41,7 +52,7 @@ export function Sidebar({ currentPath }: SidebarProps) {
         ))}
       </nav>
       <div className="sidebar-footer">
-        <span className="version-tag">Phase 1 · Prototype</span>
+        <span className="version-tag">Phase 2 · Expanded</span>
       </div>
     </aside>
   );

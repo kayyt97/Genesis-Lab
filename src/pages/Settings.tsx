@@ -2,6 +2,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { useAppState } from '../store/AppContext';
+import { LanguageControl } from '../components/ui/LanguageControl';
 
 export function SettingsPage() {
   const { state, dispatch } = useAppState();
@@ -50,6 +51,11 @@ export function SettingsPage() {
           </label>
         </Card>
 
+        <Card title="Language">
+          <LanguageControl />
+          <p className="text-muted">Applies across glossary, tooltips, simulations, and module explanations. The scientific model does not change.</p>
+        </Card>
+
         <Card title="Display">
           <label className="checkbox-label">
             <input
@@ -85,7 +91,7 @@ export function SettingsPage() {
         <Card title="About">
           <dl className="detail-dl">
             <dt>Application</dt><dd>Genesis Lab</dd>
-            <dt>Version</dt><dd>Phase 1 — Foundation</dd>
+            <dt>Version</dt><dd>Phase 2 — Expanded</dd>
             <dt>Simulation Engine</dt><dd>Prototype v1.0 (Educational Model)</dd>
             <dt>Storage</dt><dd>Local-first (browser localStorage)</dd>
           </dl>

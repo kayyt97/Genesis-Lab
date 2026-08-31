@@ -1,5 +1,12 @@
 /** Core data models for Genesis Lab */
 
+import type { TieredText } from './language';
+import type { ExperimentCondition, HypothesisWorkflow } from './scientific';
+
+export type { LanguageLevel, TieredText } from './language';
+export type { EvidenceLevel, EvidenceMeta, DataProvenance } from './evidence';
+export * from './scientific';
+
 export type DataSourceType =
   | 'simulation'
   | 'educational'
@@ -111,6 +118,11 @@ export interface Experiment {
   observations: string[];
   notes: string;
   status: 'draft' | 'active' | 'completed' | 'archived';
+  conditions?: ExperimentCondition[];
+  hypothesisWorkflow?: HypothesisWorkflow;
+  simulationSeed?: number;
+  variabilityEnabled?: boolean;
+  parentExperimentId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -155,6 +167,9 @@ export interface Simulation {
   metadata: DataSourceMeta;
   startedAt?: string;
   completedAt?: string;
+  seed?: number;
+  variabilityEnabled?: boolean;
+  conditionId?: string;
 }
 
 export interface SimulationResult {
@@ -196,6 +211,8 @@ export interface GlossaryEntry {
   example: string;
   appearsIn: string[];
   relatedTerms: string[];
+  tiered?: TieredText;
+  simpleTitle?: string;
 }
 
 export interface AppSettings {
@@ -204,6 +221,8 @@ export interface AppSettings {
   simulationSpeedDefault: number;
   showDisclaimers: boolean;
   currentProjectName: string;
+  languageLevel: import('./language').LanguageLevel;
+  activeProjectId: string | null;
 }
 
 export interface MolecularModelPlaceholder {

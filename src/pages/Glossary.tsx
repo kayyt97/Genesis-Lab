@@ -2,10 +2,13 @@ import { useState, useMemo } from 'react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { glossaryEntries, searchGlossary } from '../data/glossary';
+import { getGlossaryText } from '../content/language';
+import { useLanguage } from '../components/ui/LanguageControl';
 
 export function GlossaryPage() {
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState(glossaryEntries[0]?.id ?? '');
+  const languageLevel = useLanguage();
 
   const filtered = useMemo(() => searchGlossary(query), [query]);
   const selected = glossaryEntries.find((e) => e.id === selectedId) ?? filtered[0];
@@ -56,13 +59,15 @@ export function GlossaryPage() {
                 </div>
               )}
               <div className="glossary-field">
-                <strong>Plain English</strong>
-                <p>{selected.plainEnglish}</p>
+                <strong>{languageLevel === 'technical' ? 'Scientific Definition' : languageLevel === 'simple' ? 'Plain English' : 'Definition'}</strong>
+                <p>{getGlossaryText(selected, languageLevel)}</p>
               </div>
-              <div className="glossary-field">
-                <strong>Scientific Definition</strong>
-                <p>{selected.scientificDefinition}</p>
-              </div>
+              {languageLevel === 'standard' && selected.plainEnglish !== selected.scientificDefinition && (
+                <div className="glossary-field">
+                  <strong>Scientific Detail</strong>
+                  <p>{selected.scientificDefinition}</p>
+                </div>
+              )}
               <div className="glossary-field">
                 <strong>Example</strong>
                 <p>{selected.example}</p>
