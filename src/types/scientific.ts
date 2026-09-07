@@ -191,6 +191,8 @@ export interface HypothesisWorkflow {
   dependentVariable: string;
   controls: string;
   prediction: string;
+  experimentPlan?: string;
+  resultSummary?: string;
   conclusion?: string;
   verdict?: 'supports' | 'does-not-support' | 'inconclusive';
 }

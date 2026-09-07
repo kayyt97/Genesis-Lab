@@ -4,11 +4,21 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { EntityActions } from '../components/ui/EntityActions';
+import { ExplainThis } from '../components/ui/ExplainThis';
+import { AboutThisTool } from '../components/ui/AboutThisTool';
 import { resolveTiered } from '../content/language';
 import { useLanguage } from '../components/ui/LanguageControl';
 import { useAppState } from '../store/AppContext';
 import { moleculeIndex, MOLECULE_LIBRARY_CATEGORIES } from '../catalogue/index';
 import type { EntityActionContext } from '../services/moduleActions';
+
+const MOLECULE_EXPLAIN = {
+  whatIsIt: 'A molecule is a group of atoms bonded together. The Molecular Library is an educational catalogue of common compounds.',
+  whatAmILookingAt: 'Browse by category or search. Selecting a compound shows formula, elements, and a short biological role summary.',
+  whyItMatters: 'Molecules are the working pieces of biochemistry — nutrients, medicines (reference only), metabolites, and lab reagents.',
+  howUsed: 'Select a compound, then use module actions to open Molecule Explorer, Pathway Explorer, or Virtual Lab where supported.',
+  whatItDoesNotMean: 'Catalogue entries are educational references — not prescriptions, purity certificates, or therapy advice.',
+};
 
 export function MolecularLibraryPage() {
   const { dispatch } = useAppState();
@@ -33,6 +43,15 @@ export function MolecularLibraryPage() {
       <PageHeader
         title="Molecular Library"
         subtitle={`Scalable compound catalogue — ${moleculeIndex.size.toLocaleString()} entries`}
+        actions={<ExplainThis title="Molecular Library" content={MOLECULE_EXPLAIN} />}
+      />
+
+      <AboutThisTool
+        title="Understanding the Molecular Library"
+        whatIsThis="An educational catalogue of compounds — formulas, elements, and short biological roles."
+        whyUseIt="Browse or search for molecules, then open related explorers or send context to the Virtual Lab."
+        whatCanILearn="Common laboratory and biological molecules and how they connect to other Genesis modules."
+        caveat="Catalogue entries are educational references — not prescriptions or therapy advice."
       />
 
       <Card title="Connected Modules" className="connected-modules">
@@ -43,10 +62,29 @@ export function MolecularLibraryPage() {
       </Card>
 
       <Card title="Browse Compounds">
-        <input type="search" className="search-input" placeholder="Search name, formula, element…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+        <input
+          type="search"
+          className="search-input"
+          placeholder="Search name, formula, element…"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+            setSelectedId(null);
+          }}
+        />
         <div className="category-tabs">
           {MOLECULE_LIBRARY_CATEGORIES.map((c) => (
-            <button key={c.value} type="button" className={`category-tab ${category === c.value ? 'active' : ''}`} onClick={() => { setCategory(c.value); setPage(1); }}>
+            <button
+              key={c.value}
+              type="button"
+              className={`category-tab ${category === c.value ? 'active' : ''}`}
+              onClick={() => {
+                setCategory(c.value);
+                setPage(1);
+                setSelectedId(null);
+              }}
+            >
               {c.label}
             </button>
           ))}

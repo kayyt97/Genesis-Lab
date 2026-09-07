@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Button } from '../ui/Button';
+import { ExplainThis } from '../ui/ExplainThis';
+import { EXPLAIN } from '../../content/explainers';
 import type { ReportLanguageLevel, ScientificReport } from '../../types/experimentWorkspace';
 import type { ResearchProject } from '../../types/scientific';
 import {
@@ -41,11 +43,24 @@ export function ScientificReportPanel({
   onFinalize,
 }: ScientificReportPanelProps) {
   const [preview, setPreview] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
   const provenance = buildExportProvenance(setup, experimentalSim, report.reportLevel);
+
+  const handleFinalize = () => {
+    if (report.finalized) {
+      setFeedback('Report is already marked ready for export.');
+      return;
+    }
+    onFinalize();
+    setFeedback('Report marked ready for export.');
+  };
 
   return (
     <div className="scientific-report-panel">
-      <h4>Scientific report</h4>
+      <h4>
+        Scientific report{' '}
+        <ExplainThis title="Scientific report" content={EXPLAIN.report} />
+      </h4>
       <div className="report-level-picker">
         <span className="report-level-label">Report language level (independent of app language):</span>
         {LEVELS.map(({ value, label }) => (
@@ -78,16 +93,26 @@ export function ScientificReportPanel({
       ))}
       <div className="report-actions">
         <Button variant="secondary" onClick={() => setPreview(!preview)}>{preview ? 'Hide preview' : 'Preview report'}</Button>
-        <Button onClick={onFinalize}>Mark ready for export</Button>
+        <Button
+          variant={report.finalized ? 'secondary' : 'primary'}
+          onClick={handleFinalize}
+          aria-pressed={report.finalized}
+        >
+          {report.finalized ? 'Ready for export ✓' : 'Mark ready for export'}
+        </Button>
         <Button variant="ghost" onClick={() => openReportPrintPreview(report)}>Print / PDF preview</Button>
         <Button variant="ghost" onClick={() => exportReportMarkdown(report)}>Download Markdown</Button>
         <Button variant="ghost" onClick={() => exportReportJson(report, provenance)}>Download JSON</Button>
         <Button variant="ghost" onClick={() => exportExperimentCsv(setup, experimentalSim, controlSim)}>Export CSV data</Button>
         <Button variant="ghost" onClick={() => exportExperimentJson(setup, experimentalSim, controlSim, provenance)}>Export experiment JSON</Button>
       </div>
+      {feedback && <p className="success-text action-feedback" role="status">{feedback}</p>}
+      {report.finalized && !feedback && (
+        <p className="success-text action-feedback" role="status">Report is marked ready for export.</p>
+      )}
       {preview && (
         <div className="report-preview">
-          <p className="text-muted">Report level: {report.reportLevel}</p>
+          <p className="text-muted">Report level: {report.reportLevel}{report.finalized ? ' · Ready for export' : ''}</p>
           {report.sections.map((s) => (
             <div key={s.id}>
               <h5>{s.title}</h5>

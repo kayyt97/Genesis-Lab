@@ -24,14 +24,14 @@ export function organismToMicroscopeSpecimen(entry: OrganismCatalogueEntry): Mic
 }
 
 export function sendOrganismToVirtualLab(ctx: EntityActionContext, entry: OrganismCatalogueEntry) {
-  sendToVirtualLab(ctx.dispatch, entry.id, entry.name, 'molecule');
+  sendToVirtualLab(ctx.dispatch, entry.id, entry.name, 'pathway-node');
   ctx.navigate('/virtual-lab');
 }
 
 export function sendOrganismToMicroscope(ctx: EntityActionContext, entry: OrganismCatalogueEntry) {
   const specimen = organismToMicroscopeSpecimen(entry);
   sendToMicroscope(ctx.dispatch, specimen);
-  ctx.navigate('/virtual-microscope');
+  ctx.navigate('/microscope');
 }
 
 export function openGeneInGenome(ctx: EntityActionContext, gene: GeneCatalogueEntry) {

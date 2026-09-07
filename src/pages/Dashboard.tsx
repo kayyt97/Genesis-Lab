@@ -68,8 +68,10 @@ export function DashboardPage() {
             <Link to="/experiment-builder"><Button variant="primary">New Experiment</Button></Link>
             <Link to="/samples"><Button variant="secondary">Create Sample</Button></Link>
             <Link to="/virtual-lab"><Button variant="secondary">Open Virtual Lab</Button></Link>
-            <Link to="/molecular-library"><Button variant="ghost">Browse Molecular Library</Button></Link>
-            <Link to="/glossary"><Button variant="ghost">Open Glossary</Button></Link>
+            <Link to="/molecular-library"><Button variant="secondary">Browse Molecular Library</Button></Link>
+            <Link to="/glossary"><Button variant="secondary">Open Glossary</Button></Link>
+            <Link to="/hypothesis-builder"><Button variant="secondary">Hypothesis Builder</Button></Link>
+            <Link to="/microscope"><Button variant="secondary">Digital Microscope</Button></Link>
           </div>
         </Card>
 

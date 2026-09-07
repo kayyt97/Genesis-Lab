@@ -9,6 +9,8 @@ import { GlossaryTerm, ParameterHelp } from '../components/ui/GlossaryTerm';
 import { TimelineScrubber } from '../components/ui/TimelineScrubber';
 import { PARAM_HELP } from '../content/parameterHelp';
 import { SimulationBadge } from '../components/ui/DisclaimerBanner';
+import { AboutThisTool } from '../components/ui/AboutThisTool';
+import { EXPLAIN } from '../content/explainers';
 import { ViabilityForecastPanel } from '../components/lab/ViabilityForecastPanel';
 import { BiologicalSampleSelector } from '../components/lab/BiologicalSampleSelector';
 import { ExperimentCompositionPanel } from '../components/lab/ExperimentCompositionPanel';
@@ -71,7 +73,8 @@ export function VirtualLabPage() {
   const [selectedCatalogueId, setSelectedCatalogueId] = useState('ORG-ECOLI');
   const [scrubTime, setScrubTime] = useState<number | null>(null);
   const [showDesignCheck, setShowDesignCheck] = useState(false);
-  const [showReport, setShowReport] = useState(false);
+  const [showReport, setShowReport] = useState(() => !!state.reportDraft);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [reportLevel, setReportLevel] = useState<ReportLanguageLevel>('standard');
   const [pendingRole, setPendingRole] = useState<MoleculeTransferRole | null>(null);
 
@@ -165,9 +168,26 @@ export function VirtualLabPage() {
   }, [sim?.status, dispatch]);
 
   useEffect(() => {
-    if (!handoff || handoff.targetModule !== 'Virtual Lab' || handoff.type !== 'molecule') return;
+    if (!handoff || handoff.targetModule !== 'Virtual Lab') return;
+    // Organism catalogue handoff — select sample, do not open molecule role picker
+    if (handoff.entityId.startsWith('ORG-')) {
+      const entry = organismIndex.getById(handoff.entityId);
+      if (entry) {
+        setSelectedCatalogueId(entry.id);
+        initFromCatalogue(entry);
+      }
+      dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
+      setPendingRole(null);
+      return;
+    }
+    if (handoff.type !== 'molecule' && handoff.type !== 'therapeutic') return;
+    if (handoff.type === 'therapeutic') {
+      // Therapeutic designs attach as conceptual treatment context
+      setPendingRole('treatment');
+      return;
+    }
     setPendingRole(handoff.moleculeRole ?? inferMoleculeRole(handoff.entityId, handoff.label));
-  }, [handoff]);
+  }, [handoff, dispatch, initFromCatalogue]);
 
   const applyHandoffMolecule = (role: MoleculeTransferRole) => {
     if (!handoff || !setup) return;
@@ -255,7 +275,10 @@ export function VirtualLabPage() {
   };
 
   const handleGenerateReport = (level: ReportLanguageLevel = reportLevel) => {
-    if (!setup) return;
+    if (!setup) {
+      setActionFeedback('Unable to generate report. Select a biological sample and set up an experiment first.');
+      return;
+    }
     const project = state.projects.find((p) => p.id === state.settings.activeProjectId) ?? null;
     dispatch({ type: 'SET_REPORT_DRAFT', payload: buildScientificReport(setup, sim, controlSim, project, level) });
     setReportLevel(level);
@@ -263,6 +286,16 @@ export function VirtualLabPage() {
       dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: { ...setup, lifecycle: 'completed', completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } });
     }
     setShowReport(true);
+    setActionFeedback('Scientific report generated. Preview is shown below — it will persist after refresh.');
+  };
+
+  const handleSaveBaseline = () => {
+    if (!sim) {
+      setActionFeedback('No active simulation to save as baseline. Start or step the simulation first.');
+      return;
+    }
+    dispatch({ type: 'SAVE_SIMULATION_SNAPSHOT' });
+    setActionFeedback('Baseline saved for comparison (Research Assistant and this session).');
   };
 
   const viabilityData = sim?.snapshots.map((s) => ({ x: s.timeHours, y: s.organismState.viability })) ?? [];
@@ -272,6 +305,14 @@ export function VirtualLabPage() {
   return (
     <div className="virtual-lab">
       <PageHeader title="Virtual Lab" subtitle="Construct and run educational simulation experiments" actions={<SimulationBadge />} />
+
+      <AboutThisTool
+        title="Understanding the Virtual Lab"
+        whatIsThis={EXPLAIN.virtualLab.whatIsIt}
+        whyUseIt={EXPLAIN.virtualLab.whyItMatters ?? ''}
+        whatCanILearn="How environment, treatments, and controls affect modelled viability and population over simulated time."
+        caveat={EXPLAIN.virtualLab.whatItDoesNotMean}
+      />
 
       {handoff && handoff.targetModule === 'Virtual Lab' && pendingRole && (
         <div className="handoff-banner">
@@ -362,14 +403,22 @@ export function VirtualLabPage() {
 
         <Card title="Simulation Controls">
           <div className="sim-controls">
-            <Button onClick={handleStart} disabled={sim?.status === 'running'}>Start</Button>
-            <Button variant="secondary" onClick={handlePause} disabled={sim?.status !== 'running'}>Pause</Button>
-            <Button variant="secondary" onClick={handleResume} disabled={sim?.status !== 'paused'}>Resume</Button>
-            <Button variant="secondary" onClick={handleReset}>Reset</Button>
-            <Button variant="ghost" onClick={handleStep}>Step Forward</Button>
-            <Button variant="ghost" onClick={() => dispatch({ type: 'SAVE_SIMULATION_SNAPSHOT' })}>Save Baseline</Button>
-            <Button variant="secondary" onClick={() => handleGenerateReport()}>Generate Report</Button>
+            <Button className="sim-control-btn" onClick={handleStart} disabled={sim?.status === 'running'}>Start</Button>
+            <Button className="sim-control-btn" variant="secondary" onClick={handlePause} disabled={!sim || sim.status !== 'running'}>Pause</Button>
+            <Button className="sim-control-btn" variant="secondary" onClick={handleResume} disabled={!sim || sim.status !== 'paused'}>Resume</Button>
+            <Button className="sim-control-btn" variant="secondary" onClick={handleReset} disabled={!sim}>Reset</Button>
+            <Button className="sim-control-btn" variant="secondary" onClick={handleStep} disabled={!sim}>Step Forward</Button>
+            <Button className="sim-control-btn" variant="secondary" onClick={handleSaveBaseline} disabled={!sim}>Save Baseline</Button>
+            <Button className="sim-control-btn" variant="secondary" onClick={() => handleGenerateReport()} disabled={!setup}>Generate Report</Button>
           </div>
+          {actionFeedback && <p className="success-text action-feedback" role="status">{actionFeedback}</p>}
+          {!setup && <p className="text-muted">Select a sample above to enable report generation.</p>}
+          {state.priorSimulationSnapshot && (
+            <p className="text-muted">Baseline stored from tick {state.priorSimulationSnapshot.currentTick} ({state.priorSimulationSnapshot.timeHours.toFixed(1)} h).</p>
+          )}
+          {(showReport || state.reportDraft) && state.reportDraft && !showReport && (
+            <Button variant="ghost" onClick={() => setShowReport(true)}>Show saved report preview</Button>
+          )}
           <div className="report-level-picker">
             <span className="report-level-label">Report detail:</span>
             {(['simple', 'standard', 'technical'] as ReportLanguageLevel[]).map((level) => (
@@ -435,7 +484,7 @@ export function VirtualLabPage() {
                 simulatedViability: sim.organismState.viability,
                 notes: `Modelled viability: ${sim.organismState.viability.toFixed(1)}% at ${sim.timeHours.toFixed(1)} h`,
               });
-              navigate('/virtual-microscope');
+              navigate('/microscope');
             }}>Send to Microscope</Button>
             <Button variant="ghost" onClick={() => navigate('/pathway-explorer')}>Open in Pathway Explorer</Button>
           </div>
@@ -513,7 +562,7 @@ export function VirtualLabPage() {
           </div>
         </Card>
 
-        {showReport && state.reportDraft && setup && (
+        {(showReport || !!state.reportDraft) && state.reportDraft && setup && (
           <Card title="Scientific Report" className="span-2">
             <ScientificReportPanel
               report={state.reportDraft}
@@ -528,6 +577,11 @@ export function VirtualLabPage() {
                 payload: state.reportDraft ? { ...state.reportDraft, finalized: true, updatedAt: new Date().toISOString() } : null,
               })}
             />
+          </Card>
+        )}
+        {showReport && !setup && (
+          <Card title="Scientific Report" className="span-2">
+            <p className="error-text">Unable to show report preview without an active experiment setup. Select a biological sample first.</p>
           </Card>
         )}
       </div>

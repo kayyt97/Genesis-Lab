@@ -4,6 +4,9 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { EvidenceBadge } from '../components/ui/EvidenceBadge';
+import { ExplainThis, ExplainLabel } from '../components/ui/ExplainThis';
+import { AboutThisTool } from '../components/ui/AboutThisTool';
+import { EXPLAIN } from '../content/explainers';
 import { resolveTiered } from '../content/language';
 import { useLanguage } from '../components/ui/LanguageControl';
 import { useAppState, generateId, sendToVirtualLab } from '../store/AppContext';
@@ -12,6 +15,57 @@ import type { TherapeuticDesign, TherapeuticTargetType, DeliveryModelType, Paylo
 
 const SAFETY_NOTICE =
   'This module supports conceptual therapeutic modelling only. It does not output viable pathogen sequences, replication-competent designs, or wet-lab construction protocols.';
+
+const PARAM_EXPLAIN: Record<string, { whatIsIt: string; whyItMatters: string; howUsed: string; whatItDoesNotMean: string }> = {
+  targetingPreference: {
+    whatIsIt: 'How strongly the conceptual design prefers the intended target over other molecules.',
+    whyItMatters: 'Higher targeting preference models a more selective therapy idea.',
+    howUsed: 'Increase it when exploring a selective-design concept; decrease it to discuss off-target risk.',
+    whatItDoesNotMean: 'This slider is not a measured binding affinity from a real assay.',
+  },
+  uptake: {
+    whatIsIt: 'How readily the conceptual delivery system is imagined to enter target cells.',
+    whyItMatters: 'Poor uptake can limit effect even if the payload is good on paper.',
+    howUsed: 'Raise uptake when discussing efficient delivery; lower it when discussing delivery barriers.',
+    whatItDoesNotMean: 'Not a measured transfection or infection efficiency.',
+  },
+  therapeuticEffect: {
+    whatIsIt: 'Conceptual strength of the desired biological effect.',
+    whyItMatters: 'Helps you think about benefit vs other trade-offs on this page.',
+    howUsed: 'Adjust to explore strong vs modest effect scenarios in discussion.',
+    whatItDoesNotMean: 'Not clinical efficacy in humans.',
+  },
+  immuneResponse: {
+    whatIsIt: 'How strongly the body might notice or react to the delivery concept.',
+    whyItMatters: 'Immune recognition can clear a therapy or cause side effects.',
+    howUsed: 'Higher values emphasise immune visibility as a design trade-off.',
+    whatItDoesNotMean: 'Not a prediction of cytokine release or allergy risk.',
+  },
+  clearance: {
+    whatIsIt: 'How quickly the conceptual therapy is removed from the system.',
+    whyItMatters: 'Clearance affects how long an effect might last in a model.',
+    howUsed: 'High clearance = short-lived concept; low clearance = longer presence in the teaching model.',
+    whatItDoesNotMean: 'Not a pharmacokinetic half-life from patient data.',
+  },
+  offTargetEffect: {
+    whatIsIt: 'Chance the design affects molecules or cells it was not aimed at.',
+    whyItMatters: 'Off-target effects are a major safety consideration in real research.',
+    howUsed: 'Increase to explore safety discussion; decrease for an idealised selective scenario.',
+    whatItDoesNotMean: 'Not a genome-wide off-target map.',
+  },
+  resistance: {
+    whatIsIt: 'How easily a biological system might adapt around the therapy idea.',
+    whyItMatters: 'Resistance thinking matters for long-term strategy discussions.',
+    howUsed: 'Use higher values when discussing escape or adaptation scenarios.',
+    whatItDoesNotMean: 'Not a measured mutation or escape frequency.',
+  },
+  toxicityProxy: {
+    whatIsIt: 'A teaching proxy for unwanted harm from the conceptual design.',
+    whyItMatters: 'Forces attention on safety trade-offs alongside desired effect.',
+    howUsed: 'Raise it when exploring safety-limiting scenarios.',
+    whatItDoesNotMean: 'Not a toxicology study or LD50.',
+  },
+};
 
 type GuidedStart = 'gene' | 'protein' | 'receptor' | 'disease-process' | 'biological-process' | 'desired-effect';
 
@@ -79,6 +133,7 @@ export function TherapeuticDesignPage() {
   const [guidedMode, setGuidedMode] = useState(false);
   const [guidedStart, setGuidedStart] = useState<GuidedStart | null>(null);
   const [guidedQuery, setGuidedQuery] = useState('');
+  const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<TherapeuticDesign>>({
     name: 'Conceptual therapeutic design',
     targetType: 'pathway',
@@ -101,6 +156,10 @@ export function TherapeuticDesignPage() {
   const guidedResults = guidedQuery.trim() ? searchPathwayExplorer(guidedQuery) : [];
 
   const save = () => {
+    if (!form.targetDescription?.trim()) {
+      setSaveFeedback('Add a target description before saving — even a short educational one.');
+      return;
+    }
     const design: TherapeuticDesign = {
       id: generateId('TD'),
       name: form.name ?? 'Untitled design',
@@ -114,6 +173,7 @@ export function TherapeuticDesignPage() {
       evidence: { level: 'speculative', note: 'Conceptual therapeutic model' },
     };
     dispatch({ type: 'ADD_THERAPEUTIC', payload: design });
+    setSaveFeedback(`Saved conceptual design “${design.name}”. This is an educational model — not a clinical therapy.`);
   };
 
   const sendToLab = (id: string, name: string) => {
@@ -132,10 +192,38 @@ export function TherapeuticDesignPage() {
       <PageHeader
         title="Gene & Therapeutic Vector Design"
         subtitle="Conceptual therapeutic intervention modelling"
-        actions={<EvidenceBadge level="speculative" />}
+        actions={
+          <>
+            <ExplainThis title="Therapeutic Design" content={EXPLAIN.therapeutic} />
+            <EvidenceBadge level="speculative" />
+          </>
+        }
       />
 
       <div className="safety-notice">{SAFETY_NOTICE}</div>
+
+      <AboutThisTool
+        title="Understanding Therapeutic Design"
+        whatIsThis="Researchers explore potential strategies for modifying, replacing, delivering, or regulating biological/genetic material to address a biological problem. This page is an educational simulation of that thinking — not a clinic or wet lab."
+        whyUseIt="Practise choosing a target, a delivery concept (vector), and trade-off parameters so you understand how therapy ideas are framed before real experiments."
+        whatCanILearn="What genes and vectors mean in this context, what each control represents, and why a simulated design is not a validated treatment."
+        caveat="A simulated design is not automatically a validated treatment, clinical recommendation, or laboratory-ready therapeutic construct."
+        defaultOpen
+      >
+        <div className="explain-legend">
+          <ExplainLabel label="Gene" content={EXPLAIN.gene} />
+          <ExplainLabel label="Vector" content={EXPLAIN.vector} />
+          <ExplainLabel label="Therapeutic design" content={EXPLAIN.therapeutic} />
+        </div>
+        <dl className="detail-dl about-tx-dl">
+          <dt>What am I designing?</dt>
+          <dd>A conceptual model: target type, target description, delivery model, payload effect, and teaching sliders for selectivity, uptake, effect, immune noticeability, clearance, off-target risk, resistance, and toxicity proxy.</dd>
+          <dt>What problem could this address?</dt>
+          <dd>Any educational scenario you describe — for example reducing an overactive pathway node or restoring a missing function — for discussion only.</dd>
+          <dt>What does the result mean?</dt>
+          <dd>A saved teaching artefact of your choices for Virtual Lab handoff and learning — not proof of safety or efficacy.</dd>
+        </dl>
+      </AboutThisTool>
 
       <Card title="Target Selection">
         <Button variant={guidedMode ? 'primary' : 'secondary'} onClick={() => setGuidedMode(!guidedMode)}>
@@ -212,7 +300,8 @@ export function TherapeuticDesignPage() {
             </label>
             <label>Target description<textarea value={form.targetDescription} onChange={(e) => setForm({ ...form, targetDescription: e.target.value })} rows={2} /></label>
             <label>
-              Delivery model
+              Delivery model{' '}
+              <ExplainThis title="Delivery / vector" content={EXPLAIN.vector} />
               <select value={form.deliveryModel} onChange={(e) => setForm({ ...form, deliveryModel: e.target.value as DeliveryModelType })}>
                 <option value="non-replicating-vector">Non-replicating vector (conceptual)</option>
                 <option value="lipid-carrier">Lipid carrier</option>
@@ -231,11 +320,16 @@ export function TherapeuticDesignPage() {
             </label>
             {(['targetingPreference', 'uptake', 'therapeuticEffect', 'immuneResponse', 'clearance', 'offTargetEffect', 'resistance', 'toxicityProxy'] as const).map((key) => (
               <label key={key}>
-                {key.replace(/([A-Z])/g, ' $1')}: {v[key]}
+                <span className="env-label-row">
+                  {key.replace(/([A-Z])/g, ' $1')}
+                  <ExplainThis title={key} content={PARAM_EXPLAIN[key]} />
+                </span>
+                : {v[key]}
                 <input type="range" min={0} max={100} value={v[key]} onChange={(e) => setForm({ ...form, variables: { ...v, [key]: parseInt(e.target.value, 10) } })} />
               </label>
             ))}
             <Button onClick={save}>Save design</Button>
+            {saveFeedback && <p className="success-text action-feedback" role="status">{saveFeedback}</p>}
           </div>
         </Card>
 

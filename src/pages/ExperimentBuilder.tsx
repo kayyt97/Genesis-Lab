@@ -3,6 +3,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { GlossaryTerm } from '../components/ui/GlossaryTerm';
+import { AboutThisTool } from '../components/ui/AboutThisTool';
 import { useAppState, generateId } from '../store/AppContext';
 import { demoOrganisms, demoSamples, defaultEnvironment } from '../data/demoData';
 import type { Experiment, ExperimentVariable } from '../types';
@@ -26,6 +27,8 @@ export function ExperimentBuilderPage() {
   const { state, dispatch } = useAppState();
   const [step, setStep] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<Experiment>>({
     name: '',
     researchQuestion: '',
@@ -54,12 +57,22 @@ export function ExperimentBuilderPage() {
   };
 
   const saveExperiment = () => {
+    if (!form.name?.trim()) {
+      setError('Please enter an experiment name before saving.');
+      setStep(0);
+      return;
+    }
+    if (!form.hypothesis?.trim()) {
+      setError('Please enter a hypothesis before saving. Use Hypothesis Builder if you need help.');
+      setStep(0);
+      return;
+    }
     const now = new Date().toISOString();
     const experiment: Experiment = {
       id: editingId ?? generateId('EXP'),
-      name: form.name ?? 'Untitled Experiment',
+      name: form.name.trim(),
       researchQuestion: form.researchQuestion ?? '',
-      hypothesis: form.hypothesis ?? '',
+      hypothesis: form.hypothesis.trim(),
       sampleId: form.sampleId,
       organismId: form.organismId,
       controlGroup: form.controlGroup ?? '',
@@ -85,7 +98,18 @@ export function ExperimentBuilderPage() {
       dispatch({ type: 'ADD_EXPERIMENT', payload: experiment });
     }
     setEditingId(experiment.id);
+    setError(null);
+    setFeedback(`Experiment “${experiment.name}” saved. It will persist after browser refresh.`);
     setStep(4);
+  };
+
+  const goNext = () => {
+    if (step === 0 && !form.name?.trim()) {
+      setError('Enter an experiment name to continue.');
+      return;
+    }
+    setError(null);
+    setStep((s) => Math.min(s + 1, STEPS.length - 1));
   };
 
   const newExperiment = () => {
@@ -115,6 +139,14 @@ export function ExperimentBuilderPage() {
         title="Experiment Builder"
         subtitle="Define structured experiments step by step"
         actions={<Button variant="secondary" onClick={newExperiment}>New Experiment</Button>}
+      />
+
+      <AboutThisTool
+        title="Understanding Experiment Builder"
+        whatIsThis="A guided form for writing down an experiment’s question, hypothesis, groups, variables, and environment."
+        whyUseIt="Structure your thinking before running a Virtual Lab simulation so results are easier to interpret."
+        whatCanILearn="How independent, dependent, and controlled variables fit together in educational experimental design."
+        caveat="Saving stores your design locally. Simulation outcomes remain educational models, not clinical results."
       />
 
       <div className="builder-layout">
@@ -254,6 +286,7 @@ export function ExperimentBuilderPage() {
             {step === 3 && (
               <div className="form-section">
                 <h4>Environmental Conditions</h4>
+                <p className="text-muted">Set baseline incubation parameters. Optional treatments can be added later in Virtual Lab via molecule handoff.</p>
                 <div className="env-form-grid">
                   <label>
                     <GlossaryTerm term="temperature">Temperature</GlossaryTerm> (°C)
@@ -321,17 +354,30 @@ export function ExperimentBuilderPage() {
                   <dt>Research Question</dt><dd>{form.researchQuestion || '—'}</dd>
                   <dt>Hypothesis</dt><dd>{form.hypothesis || '—'}</dd>
                   <dt>Sample</dt>
-                  <dd>{demoSamples.find((s) => s.id === form.sampleId)?.name ?? '—'}</dd>
+                  <dd>
+                    {state.samples.find((s) => s.id === form.sampleId)?.name
+                      ?? demoSamples.find((s) => s.id === form.sampleId)?.name
+                      ?? '—'}
+                  </dd>
                   <dt>Organism</dt>
                   <dd>{demoOrganisms.find((o) => o.id === form.organismId)?.commonName ?? '—'}</dd>
                   <dt>Duration</dt><dd>{form.durationHours} hours</dd>
+                  <dt>Treatments / compounds</dt>
+                  <dd>{(form.compoundIds?.length ?? 0) > 0 ? form.compoundIds!.join(', ') : 'None selected (optional)'}</dd>
                   <dt>Status</dt><dd>{form.status}</dd>
                 </dl>
                 {editingId && (
-                  <p className="save-confirm">Saved as {editingId}</p>
+                  <p className="save-confirm success-text">Saved as {editingId}</p>
                 )}
+                {feedback && <p className="success-text action-feedback" role="status">{feedback}</p>}
+                {error && <p className="error-text action-feedback" role="alert">{error}</p>}
+                <p className="text-muted">
+                  Educational note: saving stores your experiment design locally. Run outcomes come from Virtual Lab simulation — they are models, not clinical results.
+                </p>
               </div>
             )}
+
+            {error && step !== 4 && <p className="error-text action-feedback" role="alert">{error}</p>}
 
             <div className="step-nav">
               {step > 0 && (
@@ -340,7 +386,7 @@ export function ExperimentBuilderPage() {
                 </Button>
               )}
               {step < STEPS.length - 1 && (
-                <Button onClick={() => setStep(step + 1)}>Next</Button>
+                <Button onClick={goNext}>Next</Button>
               )}
               {step === STEPS.length - 1 && (
                 <Button onClick={saveExperiment}>Save Experiment</Button>

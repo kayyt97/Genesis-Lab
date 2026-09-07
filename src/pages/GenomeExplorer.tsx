@@ -17,8 +17,11 @@ import { getGeneBySymbol as getCanonicalGene, imprintingNoteForGene } from '../s
 import { CHROMOSOMES, findVariantsInGene } from '../data/genes';
 import { geneIndex, GENE_CATALOGUE } from '../catalogue/index';
 import { filterUploadedVariants } from '../services/variantFilter';
-import { getGenotypeNotationHelp } from '../services/genotypeNotation';
+import { getGenotypeNotationHelp, getGenotypeExplainContent } from '../services/genotypeNotation';
 import { assessDataQualitySignals } from '../services/dataQualitySignalService';
+import { ExplainThis } from '../components/ui/ExplainThis';
+import { AboutThisTool } from '../components/ui/AboutThisTool';
+import { EXPLAIN } from '../content/explainers';
 import type { GenomicVariant } from '../types/scientific';
 import type { EntityActionContext } from '../services/moduleActions';
 
@@ -136,12 +139,30 @@ export function GenomeExplorerPage() {
 
   return (
     <div className="genome-page">
-      <PageHeader title="Genome Explorer" subtitle="Educational genome browser — not clinical diagnosis" actions={<ProvenanceBadge provenance="real-user-data" />} />
+      <PageHeader
+        title="Genome Explorer"
+        subtitle="Educational genome browser — not clinical diagnosis"
+        actions={
+          <>
+            <ExplainThis title="Gene" content={EXPLAIN.gene} />
+            <ProvenanceBadge provenance="real-user-data" />
+          </>
+        }
+      />
 
       <div className="genome-notices">
         <p>{resolveTiered(GENOME_PRIVACY_NOTICE, languageLevel)}</p>
         <p>{resolveTiered(GENOME_NOT_DIAGNOSIS, languageLevel)}</p>
       </div>
+
+      <AboutThisTool
+        title="Understanding this view"
+        whatIsThis="This view shows genetic information arranged along a chromosome. Genes and variants are positioned according to their genomic coordinates."
+        whyUseIt="Researchers use genome browsers to explore where genes and genetic variants are located and how they relate to pathways or other biological context."
+        whatCanILearn="You can search for genes or variants, inspect available genotype information from an uploaded file, and open related pathway or therapeutic context."
+        caveat="Uploaded consumer genotype files contain sampled markers — not a complete genome. Educational exploration is not clinical diagnosis."
+        defaultOpen
+      />
 
       <Card title="Genome Search & Navigation">
         <input
@@ -255,6 +276,9 @@ export function GenomeExplorerPage() {
 
       <div className="genome-layout">
         <Card title="Chromosomes">
+          <p className="text-muted card-edu-line">
+            <ExplainThis title="Chromosome" content={EXPLAIN.chromosome} /> Select a chromosome to focus the browser and uploaded-variant list.
+          </p>
           <div className="chr-grid">
             {CHROMOSOMES.map((chr) => (
               <button key={chr.id} type="button" className={`chr-btn ${selectedChr === chr.id ? 'active' : ''}`} onClick={() => applyNavigation({ geneId: '', chromosome: chr.id })}>
@@ -266,6 +290,13 @@ export function GenomeExplorerPage() {
         </Card>
 
         <Card title={`Variants on Chr ${selectedChr}`}>
+          <p className="text-muted card-edu-line">
+            <ExplainThis title="Variant" content={EXPLAIN.variant} />{' '}
+            <ExplainThis title="Genotype" content={EXPLAIN.genotype} />{' '}
+            <ExplainThis title="Position" content={EXPLAIN.position} />{' '}
+            <ExplainThis title="rsID" content={EXPLAIN.rsId} />{' '}
+            <ExplainThis title="Status" content={EXPLAIN.observedStatus} />
+          </p>
           {!upload ? <p className="text-muted">Upload data to see variant markers.</p>
             : chrVariants.length === 0 ? <p className="text-muted">No variants on this chromosome in uploaded file.</p>
             : (
@@ -310,8 +341,9 @@ export function GenomeExplorerPage() {
         {selectedGene && (
           <div className="gene-detail">
             <dl className="detail-dl">
-              <dt>Gene</dt><dd>{selectedGene.symbol} — {selectedGene.fullName}</dd>
-              <dt>Region</dt><dd>Chr {selectedGene.chromosome} · {selectedGene.cytoband} · {selectedGene.start.toLocaleString()}–{selectedGene.end.toLocaleString()}</dd>
+              <dt>Gene <ExplainThis title="Gene" content={EXPLAIN.gene} /></dt><dd>{selectedGene.symbol} — {selectedGene.fullName}</dd>
+              <dt>Chromosome <ExplainThis title="Chromosome" content={EXPLAIN.chromosome} /></dt>
+              <dd>Chr {selectedGene.chromosome} · {selectedGene.cytoband} · {selectedGene.start.toLocaleString()}–{selectedGene.end.toLocaleString()}</dd>
               <dt>Function</dt><dd>{resolveTiered(selectedGene.function, languageLevel)}</dd>
             </dl>
             {imprintingNoteForGene(selectedGene.symbol) && (
@@ -345,12 +377,17 @@ export function GenomeExplorerPage() {
 }
 
 function GenotypeCell({ genotype, sourceFormat }: { genotype: string; sourceFormat?: string }) {
-  const help = getGenotypeNotationHelp(genotype, sourceFormat);
-  if (!help) return <>{genotype}</>;
+  const explain = getGenotypeExplainContent(genotype, sourceFormat);
+  const indel = getGenotypeNotationHelp(genotype, sourceFormat);
+  if (!explain) return <>{genotype}</>;
   return (
     <span className="genotype-with-help">
       {genotype}
-      <span className="genotype-help" title={help.explanation}>?</span>
+      <ExplainThis
+        title={indel ? `What does ${genotype} mean?` : `Genotype ${genotype}`}
+        content={explain}
+        ariaLabel={`Explain genotype ${genotype}`}
+      />
     </span>
   );
 }
@@ -367,7 +404,14 @@ function VariantTable({ variants, total, sourceFormat, highlightId }: { variants
   return (
     <div className="variant-table-wrap">
       <table className="data-table">
-        <thead><tr><th>Position</th><th>rsID</th><th>Genotype</th><th>Status</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Position <ExplainThis title="Position" content={EXPLAIN.position} /></th>
+            <th>rsID <ExplainThis title="rsID" content={EXPLAIN.rsId} /></th>
+            <th>Genotype <ExplainThis title="Genotype" content={EXPLAIN.genotype} /></th>
+            <th>Status <ExplainThis title="Status" content={EXPLAIN.observedStatus} /></th>
+          </tr>
+        </thead>
         <tbody>
           {variants.map((v) => (
             <tr
@@ -378,7 +422,7 @@ function VariantTable({ variants, total, sourceFormat, highlightId }: { variants
               <td>{v.position.toLocaleString()}</td>
               <td>{v.rsId ?? '—'}</td>
               <td><GenotypeCell genotype={v.genotype} sourceFormat={sourceFormat} /></td>
-              <td><ObservedMarker observed /></td>
+              <td><ObservedMarker observed /> <ExplainThis title="Observed status" content={EXPLAIN.observedStatus} /></td>
             </tr>
           ))}
         </tbody>

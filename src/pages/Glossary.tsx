@@ -29,7 +29,12 @@ export function GlossaryPage() {
                 key={c.value}
                 type="button"
                 className={`filter-btn ${category === c.value ? 'active' : ''}`}
-                onClick={() => setCategory(c.value)}
+                onClick={() => {
+                  setCategory(c.value);
+                  setSelectedId(glossaryEntries.find((e) =>
+                    c.value === 'all' || e.categories.includes(c.value as never)
+                  )?.id ?? '');
+                }}
               >
                 {c.label}
               </button>

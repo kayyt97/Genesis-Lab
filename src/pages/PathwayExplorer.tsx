@@ -4,6 +4,9 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { EvidenceBadge } from '../components/ui/EvidenceBadge';
+import { ExplainThis, ExplainLabel } from '../components/ui/ExplainThis';
+import { AboutThisTool } from '../components/ui/AboutThisTool';
+import { EXPLAIN } from '../content/explainers';
 import { resolveTiered } from '../content/language';
 import { useLanguage } from '../components/ui/LanguageControl';
 import { CURATED_PATHWAYS } from '../data/pathways';
@@ -118,8 +121,48 @@ export function PathwayExplorerPage() {
       <PageHeader
         title="Pathway & Interaction Explorer"
         subtitle="Gene → RNA → Protein → Pathway → Cell → Phenotype"
-        actions={<EvidenceBadge level="reference-data" />}
+        actions={
+          <>
+            <ExplainThis title="Pathway Explorer" content={EXPLAIN.pathway} />
+            <EvidenceBadge level="reference-data" />
+          </>
+        }
       />
+
+      <AboutThisTool
+        title="Why use the Pathway & Interaction Explorer?"
+        whatIsThis="A pathway is a connected series of biological events. This explorer shows curated educational maps of genes, proteins, and processes — and the interactions that link them."
+        whyUseIt="Use it to understand how biological processes are connected, explore gene–protein relationships, see how systems work together, and investigate research-relevant links."
+        whatCanILearn="Vocabulary and structure of molecular pathways: what nodes and interactions mean, and how a change in one part might relate to another in a simplified model."
+        caveat="Connections shown here represent biological/research information and should not automatically be interpreted as proof that one factor causes another."
+        defaultOpen
+      >
+        <div className="quick-glossary">
+          <h4>Quick glossary</h4>
+          <div className="explain-legend">
+            <ExplainLabel label="Pathway" content={EXPLAIN.pathway} />
+            <ExplainLabel label="Node" content={EXPLAIN.node} />
+            <ExplainLabel label="Interaction" content={EXPLAIN.interaction} />
+            <ExplainLabel label="Activation" content={EXPLAIN.activation} />
+            <ExplainLabel label="Inhibition" content={EXPLAIN.inhibition} />
+            <ExplainLabel label="Gene" content={EXPLAIN.gene} />
+            <ExplainLabel label="Protein" content={EXPLAIN.protein} />
+            <ExplainLabel label="Expression" content={EXPLAIN.expression} />
+          </div>
+        </div>
+      </AboutThisTool>
+
+      <Card title="Understanding interactions">
+        <p className="text-muted">
+          <strong>What is an interaction?</strong> A relationship between entities.{' '}
+          <ExplainThis title="Interaction" content={EXPLAIN.interaction} />
+          {' '}<strong>Lines</strong> show those relationships; <strong>nodes</strong> are the entities.{' '}
+          <ExplainThis title="Node" content={EXPLAIN.node} />
+        </p>
+        <p className="text-muted">
+          A researcher might use this to generate questions and map mechanisms — not to conclude causation from the diagram alone.
+        </p>
+      </Card>
 
       {moleculeContext && (
         <div className="handoff-banner pathway-context-banner">

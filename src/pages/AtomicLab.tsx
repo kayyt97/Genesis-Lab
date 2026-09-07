@@ -5,6 +5,8 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { EvidenceBadge } from '../components/ui/EvidenceBadge';
 import { ParameterHelp, GlossaryTerm } from '../components/ui/GlossaryTerm';
+import { ExplainThis } from '../components/ui/ExplainThis';
+import { EXPLAIN } from '../content/explainers';
 import { resolveTiered } from '../content/language';
 import { useLanguage } from '../components/ui/LanguageControl';
 import { buildAtom, ATOMIC_LAB_LIMITATIONS } from '../data/elements';
@@ -28,6 +30,8 @@ export function AtomicLabPage() {
   const [neutrons, setNeutrons] = useState(6);
   const [charge, setCharge] = useState(0);
   const [atoms, setAtoms] = useState<AtomModel[]>([]);
+  const [selectedAtomId, setSelectedAtomId] = useState<string | null>(null);
+  const [workspaceFeedback, setWorkspaceFeedback] = useState<string | null>(null);
   const [bondLog, setBondLog] = useState<string[]>([]);
   const [filterClass, setFilterClass] = useState<string>('all');
   const [showIsotopeTable, setShowIsotopeTable] = useState(false);
@@ -52,7 +56,30 @@ export function AtomicLabPage() {
     return PERIODIC_TABLE.filter((e) => e.classification.includes(filterClass));
   }, [filterClass]);
 
-  const addAtom = () => setAtoms((a) => [...a, { ...currentAtom, id: `AT-${a.length}` }]);
+  const addAtom = () => {
+    const id = `AT-${Date.now().toString(36)}-${atoms.length}`;
+    const next = { ...currentAtom, id };
+    setAtoms((a) => [...a, next]);
+    setSelectedAtomId(id);
+    setWorkspaceFeedback(`Added ${currentAtom.symbol} (mass ${massNumber}${charge !== 0 ? `, charge ${charge > 0 ? '+' : ''}${charge}` : ''}) to workspace.`);
+  };
+
+  const removeSelectedAtom = () => {
+    if (!selectedAtomId) {
+      setWorkspaceFeedback('Select an atom in the workspace list first, then remove it.');
+      return;
+    }
+    setAtoms((a) => a.filter((atom) => atom.id !== selectedAtomId));
+    setWorkspaceFeedback(`Removed atom ${selectedAtomId} from workspace.`);
+    setSelectedAtomId(null);
+  };
+
+  const clearWorkspace = () => {
+    setAtoms([]);
+    setSelectedAtomId(null);
+    setBondLog([]);
+    setWorkspaceFeedback('Workspace cleared.');
+  };
 
   const tryBond = () => {
     if (atoms.length < 2) {
@@ -222,15 +249,44 @@ export function AtomicLabPage() {
             </label>
           </div>
           <Button onClick={addAtom}>Add atom to workspace</Button>
+          {workspaceFeedback && <p className="success-text action-feedback" role="status">{workspaceFeedback}</p>}
         </Card>
 
         <Card title="Bonding Explorer" className="span-2">
-          <p className="text-muted">Explore simplified bond compatibility rules between added atoms.</p>
-          <Button variant="secondary" onClick={tryBond}>Test bond (last two atoms)</Button>
+          <p className="text-muted">
+            Explore simplified bond compatibility rules between added atoms.{' '}
+            <ExplainThis title="Atomic workspace" content={EXPLAIN.atomWorkspace} />
+          </p>
+          <div className="workspace-atom-list">
+            {atoms.length === 0 ? (
+              <p className="text-muted">No atoms yet — add one above.</p>
+            ) : (
+              <ul className="atom-chip-list">
+                {atoms.map((a) => (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      className={`atom-chip ${selectedAtomId === a.id ? 'active' : ''}`}
+                      onClick={() => setSelectedAtomId(a.id)}
+                      aria-pressed={selectedAtomId === a.id}
+                    >
+                      {a.symbol}
+                      <span className="atom-chip-meta">Z={a.protons} N={a.neutrons}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="sim-controls">
+            <Button variant="secondary" onClick={tryBond} disabled={atoms.length < 2}>Test bond (last two atoms)</Button>
+            <Button variant="secondary" onClick={removeSelectedAtom} disabled={!selectedAtomId}>Remove selected</Button>
+            <Button variant="ghost" onClick={clearWorkspace} disabled={atoms.length === 0}>Clear workspace</Button>
+          </div>
           <ul className="bond-log">
             {bondLog.slice(-5).map((m, i) => <li key={i}>{m}</li>)}
           </ul>
-          <p className="text-muted">Atoms in workspace: {atoms.map((a) => a.symbol).join(', ') || 'none'}</p>
+          <p className="text-muted">Atoms in workspace: {atoms.length} — {atoms.map((a) => a.symbol).join(', ') || 'none'}</p>
         </Card>
       </div>
 

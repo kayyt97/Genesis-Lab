@@ -265,10 +265,13 @@ describe('Phase 5 final polish', () => {
   });
 
   test('genotype II notation help', async () => {
-    const { getGenotypeNotationHelp } = await import('../services/genotypeNotation');
+    const { getGenotypeNotationHelp, getGenotypeExplainContent } = await import('../services/genotypeNotation');
     const help = getGenotypeNotationHelp('II', '23andme');
-    expect(help?.explanation).toContain('insertion');
-    expect(help?.explanation).toContain('NOT mean');
+    expect(help?.explain.whatIsIt).toContain('insertion');
+    expect(help?.explain.whatItDoesNotMean).toMatch(/does not|NOT|not/i);
+    const structured = getGenotypeExplainContent('II', '23andme');
+    expect(structured?.whatIsIt).toContain('II');
+    expect(structured?.whatResultMeans?.toLowerCase()).toContain('tell');
   });
 
   test('structural signals service retained for legacy import report', async () => {
@@ -295,6 +298,48 @@ describe('Phase 5 final polish', () => {
     expect(simple.sections.find((s) => s.id === 'limitations')?.content).not.toBe(
       technical.sections.find((s) => s.id === 'limitations')?.content,
     );
+  });
+});
+
+describe('UX overhaul regressions', () => {
+  test('hypothesis workflow fields cover experiment plan and result separately', async () => {
+    const wf = {
+      observation: 'o',
+      researchQuestion: 'q',
+      hypothesis: 'h',
+      independentVariable: 'iv',
+      dependentVariable: 'dv',
+      controls: 'c',
+      prediction: 'p',
+      experimentPlan: 'plan',
+      resultSummary: 'result',
+      conclusion: 'concl',
+      verdict: 'supports' as const,
+    };
+    expect(wf.experimentPlan).not.toBe(wf.observation);
+    expect(wf.resultSummary).not.toBe(wf.conclusion);
+  });
+
+  test('microscope route is /microscope not /virtual-microscope', async () => {
+    const mod = await import('../services/moduleActions');
+    const navigations: string[] = [];
+    const ctx = {
+      dispatch: () => {},
+      navigate: (path: string) => { navigations.push(path); },
+    };
+    const { organismIndex } = await import('../catalogue/index');
+    const entry = organismIndex.getById('ORG-ECOLI');
+    if (entry) {
+      mod.sendOrganismToMicroscope(ctx as never, entry);
+      expect(navigations.at(-1)).toBe('/microscope');
+    }
+  });
+
+  test('explainers cover pathway and therapeutic education', async () => {
+    const { EXPLAIN } = await import('../content/explainers');
+    expect(EXPLAIN.pathway.whatIsIt.length).toBeGreaterThan(40);
+    expect(EXPLAIN.therapeutic.whatItDoesNotMean).toContain('NOT');
+    expect(EXPLAIN.microscope.whatAmILookingAt.toLowerCase()).toContain('simulated');
   });
 });
 

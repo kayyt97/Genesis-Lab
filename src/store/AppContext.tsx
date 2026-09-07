@@ -330,7 +330,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
         genomeUpload: loaded.genomeUpload ?? null,
         activeExperimentSetup: loaded.activeExperimentSetup ?? null,
         controlSimulation: loaded.controlSimulation ?? null,
-        reportDraft: loaded.reportDraft ?? null,
+        priorSimulationSnapshot: loaded.priorSimulationSnapshot ?? null,
+      reportDraft: loaded.reportDraft ?? null,
         activeSimulation: loaded.activeSimulation ?? null,
       };
     }
@@ -396,6 +397,7 @@ function persistState(state: AppState) {
       activeExperimentSetup: state.activeExperimentSetup,
       controlSimulation: state.controlSimulation,
       reportDraft: state.reportDraft,
+      priorSimulationSnapshot: state.priorSimulationSnapshot,
       activeSimulation: state.activeSimulation,
       userWorkspaceActive: state.userWorkspaceActive,
       ...(state.genomeUpload?.isPersisted ? { genomeUpload: state.genomeUpload } : {}),
@@ -433,6 +435,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     state.activeExperimentSetup,
     state.controlSimulation,
     state.reportDraft,
+    state.priorSimulationSnapshot,
     state.activeSimulation,
     state.userWorkspaceActive,
   ]);
