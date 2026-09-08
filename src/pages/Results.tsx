@@ -3,6 +3,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { SimpleLineChart } from '../components/ui/Metric';
 import { SimulationBadge, DataSourceTag } from '../components/ui/DisclaimerBanner';
+import { AboutThisTool } from '../components/ui/AboutThisTool';
 import { useAppState } from '../store/AppContext';
 import { formatPopulation } from '../simulation/engine';
 
@@ -32,6 +33,14 @@ export function ResultsPage() {
         actions={<SimulationBadge />}
       />
 
+      <AboutThisTool
+        title="Understanding Results"
+        whatIsThis="A viewer for saved and live educational simulation outcomes — summaries, timelines, events, and optional control comparisons."
+        whyUseIt="Review how a modelled experiment progressed after running the Virtual Lab, and compare result sets side by side."
+        whatCanILearn="How viability and population change over simulated time, and what events the educational model recorded."
+        caveat="All charts and metrics are prototype educational models — not validated physical or clinical predictions."
+      />
+
       <div className="results-layout">
         <Card title="Result Sets">
           <ul className="result-list">
@@ -40,6 +49,7 @@ export function ResultsPage() {
                 <button
                   type="button"
                   className={`result-item ${selectedId === r.id ? 'active' : ''}`}
+                  aria-current={selectedId === r.id ? 'true' : undefined}
                   onClick={() => setSelectedId(r.id)}
                 >
                   <span>{r.experimentId ?? r.id}</span>

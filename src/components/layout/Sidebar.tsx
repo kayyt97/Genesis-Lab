@@ -39,20 +39,24 @@ export function Sidebar({ currentPath }: SidebarProps) {
           <div className="brand-subtitle">Scientific Workstation</div>
         </div>
       </div>
-      <nav className="sidebar-nav">
-        {navItems.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className={`nav-item ${currentPath === item.path ? 'active' : ''}`}
-          >
-            <span className="nav-icon">{item.icon}</span>
-            <span className="nav-label">{item.label}</span>
-          </Link>
-        ))}
+      <nav className="sidebar-nav" aria-label="Main">
+        {navItems.map((item) => {
+          const isActive = currentPath === item.path;
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`nav-item ${isActive ? 'active' : ''}`}
+              aria-current={isActive ? 'page' : undefined}
+            >
+              <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+              <span className="nav-label">{item.label}</span>
+            </Link>
+          );
+        })}
       </nav>
       <div className="sidebar-footer">
-        <span className="version-tag">Phase 4 · Depth</span>
+        <span className="version-tag">Phase 5 · Polish</span>
       </div>
     </aside>
   );

@@ -5,6 +5,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { EvidenceBadge } from '../components/ui/EvidenceBadge';
 import { EntityActions } from '../components/ui/EntityActions';
+import { AboutThisTool } from '../components/ui/AboutThisTool';
 import { resolveTiered } from '../content/language';
 import { useLanguage } from '../components/ui/LanguageControl';
 import { CURATED_MOLECULES, renderMolecule2dSvg } from '../data/molecules';
@@ -95,11 +96,19 @@ export function MoleculeExplorerPage() {
     <div className="molecule-explorer-page">
       <PageHeader title="Molecule Explorer" subtitle="Elements, atoms, ions, and compounds — integrated with Atomic Lab" actions={<EvidenceBadge level="reference-data" />} />
 
+      <AboutThisTool
+        title="Understanding Molecule Explorer"
+        whatIsThis="An educational browser for curated compounds — search by name, formula, or element, then inspect a simple 2D sketch and role summary."
+        whyUseIt="Find a molecule of interest, then send it to Virtual Lab or open Atomic Lab to explore related chemistry concepts."
+        whatCanILearn="How formulae relate to constituent elements, approximate mass, and short biological or laboratory context for common compounds."
+        caveat="Entries are educational reference data — not prescriptions, purity certificates, or clinical advice."
+      />
+
       {elementFilter && (
         <div className="handoff-banner">
           Showing compounds containing <strong>{elementFilter}</strong>
           {search && <> matching “{search}”</>}
-          <button type="button" className="handoff-dismiss" onClick={() => { setElementFilter(null); navigate('/molecule-explorer'); }}>×</button>
+          <button type="button" className="handoff-dismiss" aria-label="Clear element filter" onClick={() => { setElementFilter(null); navigate('/molecule-explorer'); }}>×</button>
         </div>
       )}
 

@@ -349,7 +349,7 @@ export function VirtualMicroscopePage() {
       {handoff && handoff.targetModule === 'Virtual Microscope' && (
         <div className="handoff-banner">
           Received from {handoff.sourceModule}: <strong>{handoff.label}</strong>
-          <button type="button" className="handoff-dismiss" onClick={() => dispatch({ type: 'SET_LAB_HANDOFF', payload: null })}>×</button>
+          <button type="button" className="handoff-dismiss" aria-label="Dismiss handoff" onClick={() => dispatch({ type: 'SET_LAB_HANDOFF', payload: null })}>×</button>
         </div>
       )}
 
@@ -436,7 +436,7 @@ export function VirtualMicroscopePage() {
           </div>
           <div className="mag-buttons">
             {MAGS.map((m) => (
-              <button key={m} type="button" className={`mag-btn ${mag === m ? 'active' : ''}`} onClick={() => setMagnification(m)}>
+              <button key={m} type="button" className={`mag-btn ${mag === m ? 'active' : ''}`} aria-pressed={mag === m} onClick={() => setMagnification(m)}>
                 {m}×
               </button>
             ))}
@@ -660,7 +660,7 @@ export function VirtualMicroscopePage() {
       {specimen && (
         <Card title="Learning & Actions">
           <div className="assistant-actions">
-            <Button variant="secondary" onClick={() => navigate('/research-assistant')}>Explain visible structures</Button>
+            <Button variant="secondary" onClick={() => navigate('/assistant')}>Explain visible structures</Button>
             <Button variant="secondary" onClick={addObservationToNotebook}>Add observation to notebook</Button>
             {getReferenceById(specimen.sourceId ?? '')?.relatedPathways?.[0] && (
               <Button variant="ghost" onClick={() => navigate('/pathway-explorer')}>Open in Pathway Explorer</Button>

@@ -5,7 +5,6 @@ import type {
   NotebookEntry,
   Sample,
   SimulationResult,
-  MolecularModelPlaceholder,
 } from '../types';
 
 export const demoSamples: Sample[] = [
@@ -403,33 +402,6 @@ export const demoSimulationResults: SimulationResult[] = [
       disclaimer: 'These results are from a prototype educational model and do not represent validated biological predictions.',
     },
     createdAt: '2026-08-30T12:00:00Z',
-  },
-];
-
-export const molecularPlaceholders: MolecularModelPlaceholder[] = [
-  {
-    id: 'MOL-001',
-    name: 'Atomic Structure Viewer',
-    type: 'atom',
-    status: 'placeholder',
-    description: 'Future module for visualising atomic structure, electron shells, and elemental properties.',
-    futureCapabilities: ['Element selection', 'Electron configuration display', 'Isotope information'],
-  },
-  {
-    id: 'MOL-002',
-    name: 'Molecular Bond Editor',
-    type: 'bond',
-    status: 'placeholder',
-    description: 'Future module for building and visualising molecular structures and bond types.',
-    futureCapabilities: ['Single/double/triple bonds', 'Bond angle display', 'SMILES import'],
-  },
-  {
-    id: 'MOL-003',
-    name: 'Protein Interaction Map',
-    type: 'protein',
-    status: 'placeholder',
-    description: 'Future module for mapping protein-protein interactions, binding sites, and conformational changes.',
-    futureCapabilities: ['Binding affinity display', 'Inhibition modelling', 'Domain architecture'],
   },
 ];
 

@@ -4,6 +4,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Metric } from '../components/ui/Metric';
 import { SimulationBadge } from '../components/ui/DisclaimerBanner';
+import { AboutThisTool } from '../components/ui/AboutThisTool';
 import { useAppState } from '../store/AppContext';
 
 export function DashboardPage() {
@@ -19,6 +20,14 @@ export function DashboardPage() {
       <PageHeader
         title="Genesis Lab"
         subtitle={`Project: ${state.settings.currentProjectName}`}
+      />
+
+      <AboutThisTool
+        title="Understanding the Dashboard"
+        whatIsThis="Your home overview for the current project — active experiment, simulation status, quick links, and recent work."
+        whyUseIt="Jump back into Virtual Lab, samples, or builders without hunting through the sidebar."
+        whatCanILearn="What is in progress, how many experiments and samples you have saved locally, and which modules to open next."
+        caveat="Status here reflects educational simulation state stored in this browser — not a clinical or institutional lab system."
       />
 
       <div className="dashboard-grid">
@@ -138,7 +147,7 @@ export function DashboardPage() {
             </div>
             <div className="status-row">
               <span>Molecular Modelling</span>
-              <span className="status-pending">Phase 4 placeholder</span>
+              <span className="status-ok">Educational catalogue (Phase 5)</span>
             </div>
             <div className="status-row">
               <span>Experiments saved</span>

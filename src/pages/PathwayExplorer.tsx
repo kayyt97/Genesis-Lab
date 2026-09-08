@@ -246,7 +246,13 @@ export function PathwayExplorerPage() {
                           )}
                         </div>
                       )}
-                      <button type="button" className="branch-toggle" onClick={() => toggleBranch(n.id)}>
+                      <button
+                        type="button"
+                        className="branch-toggle"
+                        aria-label={expandedBranches.has(n.id) ? `Collapse ${n.label}` : `Expand ${n.label}`}
+                        aria-expanded={expandedBranches.has(n.id)}
+                        onClick={() => toggleBranch(n.id)}
+                      >
                         {expandedBranches.has(n.id) ? '−' : '+'}
                       </button>
                       {i < pathway.nodes.length - 1 && <span className="pathway-arrow">↓</span>}

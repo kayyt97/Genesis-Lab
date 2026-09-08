@@ -242,12 +242,3 @@ export interface AppSettings {
   replicateCount: number;
   showDemoContent: boolean;
 }
-
-export interface MolecularModelPlaceholder {
-  id: string;
-  name: string;
-  type: 'atom' | 'molecule' | 'protein' | 'bond';
-  status: 'placeholder';
-  description: string;
-  futureCapabilities: string[];
-}

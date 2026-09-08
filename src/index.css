@@ -1212,55 +1212,6 @@ input[type="range"] {
   font-family: var(--font-mono);
 }
 
-/* Molecular placeholders */
-.future-module { margin-top: 16px; }
-
-.placeholder-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-top: 12px;
-}
-
-.placeholder-card {
-  padding: 14px;
-  background: var(--bg-primary);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  position: relative;
-}
-
-.placeholder-badge {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  font-size: 9px;
-  padding: 2px 6px;
-  background: rgba(251,191,36,0.15);
-  color: var(--warning);
-  border-radius: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.placeholder-card h4 {
-  font-size: 13px;
-  margin-bottom: 8px;
-  padding-right: 70px;
-}
-
-.placeholder-card p {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 8px;
-}
-
-.placeholder-card ul {
-  font-size: 11px;
-  color: var(--text-secondary);
-  padding-left: 16px;
-}
-
 /* Results */
 .results-detail {
   display: flex;
@@ -1364,7 +1315,6 @@ input[type="range"] {
   .lab-view-panel { grid-column: span 2; }
   .span-2 { grid-column: span 2; }
   .builder-layout { grid-template-columns: 1fr; }
-  .placeholder-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 768px) {
@@ -1385,12 +1335,40 @@ input[type="range"] {
   .notebook-layout,
   .glossary-layout,
   .safety-grid,
-  .settings-grid {
+  .settings-grid,
+  .genome-layout,
+  .pathway-layout,
+  .therapeutic-layout,
+  .projects-layout,
+  .equipment-layout {
     grid-template-columns: 1fr;
   }
   .span-2, .lab-view-panel { grid-column: span 1; }
   .env-controls-grid { grid-template-columns: 1fr; }
   .charts-row { grid-template-columns: 1fr; }
+  .chr-grid { grid-template-columns: repeat(3, 1fr); }
+  .sim-controls .sim-control-btn.btn {
+    min-width: 0;
+    flex: 1 1 calc(50% - 8px);
+  }
+  .microscope-viewport {
+    width: min(280px, 85vw);
+    height: min(280px, 85vw);
+  }
+  .microscope-compare.compare-active .microscope-viewport {
+    width: min(200px, 42vw);
+    height: min(200px, 42vw);
+  }
+  .variant-table-wrap,
+  .data-table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .control-comparison,
+  .control-comparison-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Phase 2 — Help popover (portal, no clip) */
