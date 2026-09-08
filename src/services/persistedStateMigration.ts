@@ -4,6 +4,7 @@ import type { AppSettings } from '../types';
 import { defaultEnvironment } from '../data/demoData';
 import { organismIndex } from '../catalogue/index';
 import { createExperimentSetup } from './experimentWorkspaceService';
+import { resolveCatalogueOrganismId } from './demoCatalogueIdMap';
 
 const WORKSPACE_STORAGE_VERSION = 3;
 
@@ -97,8 +98,11 @@ export function sanitizePersistedWorkspace(raw: PersistedEnvelope): PersistedEnv
   }
 
   if (isValidSimulation(next.activeSimulation)) {
+    const resolvedOrganismId =
+      resolveCatalogueOrganismId(next.activeSimulation.organismId) ?? next.activeSimulation.organismId;
     next.activeSimulation = {
       ...next.activeSimulation,
+      organismId: resolvedOrganismId,
       environment: { ...defaultEnvironment, ...next.activeSimulation.environment },
       snapshots: next.activeSimulation.snapshots ?? [],
       events: next.activeSimulation.events ?? [],
@@ -106,12 +110,24 @@ export function sanitizePersistedWorkspace(raw: PersistedEnvelope): PersistedEnv
   }
 
   if (isValidSimulation(next.controlSimulation)) {
+    const resolvedOrganismId =
+      resolveCatalogueOrganismId(next.controlSimulation.organismId) ?? next.controlSimulation.organismId;
     next.controlSimulation = {
       ...next.controlSimulation,
+      organismId: resolvedOrganismId,
       environment: { ...defaultEnvironment, ...next.controlSimulation.environment },
       snapshots: next.controlSimulation.snapshots ?? [],
       events: next.controlSimulation.events ?? [],
     };
+  }
+
+  if (Array.isArray(next.experiments)) {
+    next.experiments = next.experiments.map((exp) => {
+      if (!isObject(exp) || typeof exp.organismId !== 'string') return exp;
+      const resolved = resolveCatalogueOrganismId(exp.organismId);
+      if (!resolved || resolved === exp.organismId) return exp;
+      return { ...exp, organismId: resolved };
+    });
   }
 
   return next;

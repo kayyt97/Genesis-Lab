@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button';
 import { EvidenceBadge } from '../components/ui/EvidenceBadge';
 import { ParameterHelp, GlossaryTerm } from '../components/ui/GlossaryTerm';
 import { ExplainThis } from '../components/ui/ExplainThis';
+import { AboutThisTool } from '../components/ui/AboutThisTool';
 import { EXPLAIN } from '../content/explainers';
 import { resolveTiered } from '../content/language';
 import { useLanguage } from '../components/ui/LanguageControl';
@@ -118,6 +119,14 @@ export function AtomicLabPage() {
         title="Atomic Lab"
         subtitle="Interactive periodic table — all 118 elements"
         actions={<EvidenceBadge level="model-derived" />}
+      />
+
+      <AboutThisTool
+        title="Understanding Atomic Lab"
+        whatIsThis="An educational periodic-table workspace for exploring elements, isotopes, charge, and simplified bonding rules between atoms you add to a teaching workspace."
+        whyUseIt="Practise atomic vocabulary and basic bonding ideas before linking chemistry concepts to molecules elsewhere in Genesis Lab."
+        whatCanILearn="How proton/neutron/electron counts relate to mass number and charge, and which element pairs this teaching model treats as bond-compatible."
+        caveat="Atomic Lab is a simulated educational environment — it does not perform real laboratory measurements, spectroscopy, or quantum chemistry calculations."
       />
 
       <Card title="Model Limitations" className="limitations-card">

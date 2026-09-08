@@ -1,11 +1,17 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { GlossaryTerm } from '../components/ui/GlossaryTerm';
 import { AboutThisTool } from '../components/ui/AboutThisTool';
 import { useAppState, generateId } from '../store/AppContext';
-import { demoOrganisms, demoSamples, defaultEnvironment } from '../data/demoData';
+import { demoSamples, defaultEnvironment } from '../data/demoData';
+import {
+  getBuilderOrganismOptions,
+  getCatalogueOrganismLabel,
+  resolveCatalogueOrganismFromSample,
+  resolveCatalogueOrganismId,
+} from '../services/demoCatalogueIdMap';
 import type { Experiment, ExperimentVariable } from '../types';
 
 const STEPS = [
@@ -29,6 +35,7 @@ export function ExperimentBuilderPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const organismOptions = useMemo(() => getBuilderOrganismOptions(), []);
   const [form, setForm] = useState<Partial<Experiment>>({
     name: '',
     researchQuestion: '',
@@ -47,13 +54,27 @@ export function ExperimentBuilderPage() {
   });
 
   const loadExperiment = (exp: Experiment) => {
-    setForm(exp);
+    setForm({
+      ...exp,
+      organismId: resolveCatalogueOrganismId(exp.organismId) ?? exp.organismId,
+    });
     setEditingId(exp.id);
     setStep(0);
   };
 
   const updateField = <K extends keyof Experiment>(key: K, value: Experiment[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
+  };
+
+  const selectSample = (sampleId: string | undefined) => {
+    setForm((f) => {
+      const next: Partial<Experiment> = { ...f, sampleId };
+      const suggested = resolveCatalogueOrganismFromSample(sampleId);
+      if (suggested && !f.organismId) {
+        next.organismId = suggested;
+      }
+      return next;
+    });
   };
 
   const saveExperiment = () => {
@@ -74,7 +95,7 @@ export function ExperimentBuilderPage() {
       researchQuestion: form.researchQuestion ?? '',
       hypothesis: form.hypothesis.trim(),
       sampleId: form.sampleId,
-      organismId: form.organismId,
+      organismId: resolveCatalogueOrganismId(form.organismId),
       controlGroup: form.controlGroup ?? '',
       experimentalGroup: form.experimentalGroup ?? '',
       independentVariables: form.independentVariables ?? [],
@@ -210,7 +231,7 @@ export function ExperimentBuilderPage() {
                   Sample
                   <select
                     value={form.sampleId ?? ''}
-                    onChange={(e) => updateField('sampleId', e.target.value || undefined)}
+                    onChange={(e) => selectSample(e.target.value || undefined)}
                   >
                     <option value="">— Select sample —</option>
                     {state.samples.map((s) => (
@@ -221,15 +242,18 @@ export function ExperimentBuilderPage() {
                 <label>
                   Organism / System
                   <select
-                    value={form.organismId ?? ''}
+                    value={resolveCatalogueOrganismId(form.organismId) ?? ''}
                     onChange={(e) => updateField('organismId', e.target.value || undefined)}
                   >
                     <option value="">— Select organism —</option>
-                    {demoOrganisms.map((o) => (
-                      <option key={o.id} value={o.id}>{o.commonName}</option>
+                    {organismOptions.map((o) => (
+                      <option key={o.id} value={o.id}>{o.name} ({o.id})</option>
                     ))}
                   </select>
                 </label>
+                <p className="text-muted">
+                  Organism IDs match the Virtual Lab catalogue (e.g. ORG-ECOLI). Legacy demo IDs such as ORG-001 are mapped automatically when you load older experiments.
+                </p>
                 <label>
                   Duration (hours)
                   <input
@@ -360,7 +384,7 @@ export function ExperimentBuilderPage() {
                       ?? '—'}
                   </dd>
                   <dt>Organism</dt>
-                  <dd>{demoOrganisms.find((o) => o.id === form.organismId)?.commonName ?? '—'}</dd>
+                  <dd>{getCatalogueOrganismLabel(form.organismId) ?? '—'}</dd>
                   <dt>Duration</dt><dd>{form.durationHours} hours</dd>
                   <dt>Treatments / compounds</dt>
                   <dd>{(form.compoundIds?.length ?? 0) > 0 ? form.compoundIds!.join(', ') : 'None selected (optional)'}</dd>

@@ -7,9 +7,9 @@ import { EntityActions } from '../components/ui/EntityActions';
 import { resolveTiered } from '../content/language';
 import { useLanguage } from '../components/ui/LanguageControl';
 import { useAppState } from '../store/AppContext';
-import { demoOrganisms } from '../data/demoData';
 import { organismIndex, ORGANISM_CATEGORIES } from '../catalogue/index';
-import type { EntityActionContext } from '../services/moduleActions';
+import { getBuilderOrganismOptions } from '../services/demoCatalogueIdMap';
+import { sendOrganismToVirtualLab, type EntityActionContext } from '../services/moduleActions';
 
 export function OrganismsPage() {
   const { dispatch } = useAppState();
@@ -22,6 +22,7 @@ export function OrganismsPage() {
   const navigate = useNavigate();
 
   const actionCtx: EntityActionContext = { dispatch, navigate };
+  const simulationOrganisms = useMemo(() => getBuilderOrganismOptions(), []);
 
   const cataloguePage = useMemo(
     () => organismIndex.query({ search, category: refCategory, page, pageSize: 24, sortBy: 'name' }),
@@ -29,7 +30,7 @@ export function OrganismsPage() {
   );
 
   const selectedRef = selectedRefId ? organismIndex.getById(selectedRefId) : undefined;
-  const selectedSim = demoOrganisms.find((o) => o.id === selectedSimId);
+  const selectedSim = selectedSimId ? organismIndex.getById(selectedSimId) : undefined;
 
   return (
     <div className="organisms-page">
@@ -98,29 +99,36 @@ export function OrganismsPage() {
         )}
       </Card>
 
-      <Card title="Simulation Organisms (Virtual Lab)">
+      <Card title="Simulation-ready organisms (Virtual Lab)">
+        <p className="text-muted">
+          Curated catalogue entries shared with Experiment Builder and Virtual Lab — same IDs (e.g. ORG-ECOLI).
+        </p>
         <ul className="organism-list">
-          {demoOrganisms.map((o) => (
+          {simulationOrganisms.map((o) => (
             <li key={o.id}>
               <button
                 type="button"
                 className={`organism-item ${selectedSimId === o.id ? 'active' : ''}`}
                 onClick={() => { setSelectedSimId(o.id); setSelectedRefId(null); }}
               >
-                <span className="organism-name">{o.commonName}</span>
+                <span className="organism-name">{o.name}</span>
                 <span className="organism-sci">{o.scientificName}</span>
+                <span className="catalogue-badge">{o.id}</span>
               </button>
             </li>
           ))}
         </ul>
         {selectedSim && (
           <div className="ref-detail">
-            <h4>{selectedSim.commonName}</h4>
+            <h4>{selectedSim.name}</h4>
             <dl className="detail-dl">
-              <dt>Description</dt><dd>{selectedSim.description}</dd>
-              <dt>Classification</dt><dd>{selectedSim.classification}</dd>
+              <dt>Catalogue ID</dt><dd>{selectedSim.id}</dd>
+              <dt>Description</dt><dd>{resolveTiered(selectedSim.description, languageLevel)}</dd>
+              <dt>Classification</dt><dd>{selectedSim.taxonomy}</dd>
             </dl>
-            <button type="button" className="link-btn" onClick={() => navigate('/virtual-lab')}>Send to Virtual Lab →</button>
+            <button type="button" className="link-btn" onClick={() => sendOrganismToVirtualLab(actionCtx, selectedSim)}>
+              Send to Virtual Lab →
+            </button>
           </div>
         )}
       </Card>

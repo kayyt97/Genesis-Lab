@@ -353,3 +353,47 @@ describe('dedupeCatalogueById utility', () => {
     expect(result[0]?.name).toBe('First');
   });
 });
+
+describe('demo organism → catalogue ID mapping', () => {
+  test('maps legacy demo organism IDs to catalogue entries that exist', async () => {
+    const {
+      DEMO_ORGANISM_TO_CATALOGUE,
+      resolveCatalogueOrganismId,
+      getBuilderOrganismOptions,
+      resolveCatalogueOrganismFromSample,
+    } = await import('../services/demoCatalogueIdMap');
+    const { organismIndex } = await import('../catalogue/index');
+
+    expect(resolveCatalogueOrganismId('ORG-001')).toBe('ORG-ECOLI');
+    expect(resolveCatalogueOrganismId('ORG-004')).toBe('ORG-HELA');
+    expect(resolveCatalogueOrganismId('ORG-ECOLI')).toBe('ORG-ECOLI');
+    expect(resolveCatalogueOrganismFromSample('SMP-001')).toBe('ORG-ECOLI');
+    expect(resolveCatalogueOrganismFromSample('SMP-002')).toBe('ORG-HELA');
+
+    for (const [legacy, catalogueId] of Object.entries(DEMO_ORGANISM_TO_CATALOGUE)) {
+      expect(organismIndex.getById(catalogueId), `${legacy} → ${catalogueId}`).toBeTruthy();
+    }
+    expect(getBuilderOrganismOptions().length).toBeGreaterThanOrEqual(6);
+    expect(getBuilderOrganismOptions().every((e) => e.id.startsWith('ORG-'))).toBe(true);
+  });
+
+  test('persisted experiments rewrite legacy organism IDs on sanitize', async () => {
+    const { sanitizePersistedWorkspace } = await import('../services/persistedStateMigration');
+    const sanitized = sanitizePersistedWorkspace({
+      experiments: [
+        { id: 'EXP-LEGACY', name: 'Legacy', organismId: 'ORG-001', hypothesis: 'h' },
+        { id: 'EXP-MODERN', name: 'Modern', organismId: 'ORG-YEAST', hypothesis: 'h' },
+      ],
+    });
+    const experiments = sanitized.experiments as Array<{ id: string; organismId: string }>;
+    expect(experiments.find((e) => e.id === 'EXP-LEGACY')?.organismId).toBe('ORG-ECOLI');
+    expect(experiments.find((e) => e.id === 'EXP-MODERN')?.organismId).toBe('ORG-YEAST');
+  });
+
+  test('seed demo experiments use catalogue organism IDs', async () => {
+    const { demoExperiments } = await import('../data/demoData');
+    expect(demoExperiments.every((e) => e.organismId && !/^ORG-00\d$/.test(e.organismId))).toBe(true);
+    expect(demoExperiments.find((e) => e.id === 'EXP-001')?.organismId).toBe('ORG-ECOLI');
+    expect(demoExperiments.find((e) => e.id === 'EXP-002')?.organismId).toBe('ORG-HELA');
+  });
+});

@@ -1,5 +1,4 @@
 import type {
-  BiologicalEntity,
   Compound,
   Experiment,
   NotebookEntry,
@@ -51,139 +50,6 @@ export const demoSamples: Sample[] = [
     status: 'stored',
     associatedExperimentIds: [],
     notes: 'Purified plasmid DNA for educational reference.',
-  },
-];
-
-export const demoOrganisms: BiologicalEntity[] = [
-  {
-    id: 'ORG-001',
-    commonName: 'E. coli',
-    scientificName: 'Escherichia coli',
-    category: 'bacteria',
-    classification: 'Domain Bacteria; Phylum Pseudomonadota; Class Gammaproteobacteria',
-    description:
-      'A rod-shaped, facultatively anaerobic bacterium commonly used as a model organism in molecular biology and microbiology education.',
-    characteristics: [
-      'Gram-negative',
-      'Facultative anaerobe',
-      'Mesophilic (optimal ~37°C)',
-      'Rapid doubling time under ideal conditions',
-    ],
-    preferredEnvironment: {
-      temperature: 37,
-      ph: 7.0,
-      oxygen: 21,
-      nutrientAvailability: 80,
-    },
-    associatedExperimentIds: ['EXP-001'],
-    references: ['Demonstration data — not a clinical reference strain'],
-  },
-  {
-    id: 'ORG-002',
-    commonName: 'SARS-CoV-2 (demonstration)',
-    scientificName: 'Severe acute respiratory syndrome coronavirus 2',
-    category: 'viruses',
-    classification: 'Realm Riboviria; Order Nidovirales; Family Coronaviridae',
-    description:
-      'An enveloped RNA virus. Included as a demonstration entry for educational taxonomy and simulation architecture — not for diagnostic use.',
-    characteristics: [
-      'Single-stranded RNA genome',
-      'Enveloped',
-      'Obligate intracellular parasite',
-      'Host-dependent replication',
-    ],
-    preferredEnvironment: {
-      temperature: 37,
-      ph: 7.4,
-    },
-    associatedExperimentIds: [],
-    references: ['Educational reference only'],
-  },
-  {
-    id: 'ORG-003',
-    commonName: "Baker's Yeast",
-    scientificName: 'Saccharomyces cerevisiae',
-    category: 'fungi',
-    classification: 'Kingdom Fungi; Phylum Ascomycota; Class Saccharomycetes',
-    description:
-      'A unicellular fungus widely used in baking, brewing, and as a eukaryotic model organism.',
-    characteristics: [
-      'Unicellular eukaryote',
-      'Budding reproduction',
-      'Facultative anaerobe',
-      'Optimal growth ~30°C',
-    ],
-    preferredEnvironment: {
-      temperature: 30,
-      ph: 5.5,
-      oxygen: 21,
-      nutrientAvailability: 70,
-    },
-    associatedExperimentIds: [],
-    references: ['Demonstration data'],
-  },
-  {
-    id: 'ORG-004',
-    commonName: 'HeLa Cells',
-    scientificName: 'Homo sapiens (HeLa cell line)',
-    category: 'mammalian-cells',
-    classification: 'Eukaryotic adherent cell line derived from human cervical epithelium',
-    description:
-      'An immortalised human cell line extensively used in biomedical research. Demonstration entry only.',
-    characteristics: [
-      'Adherent morphology',
-      'Diploid (with known anomalies)',
-      'Requires serum-supplemented medium',
-      'Sensitive to temperature extremes',
-    ],
-    preferredEnvironment: {
-      temperature: 37,
-      ph: 7.4,
-      oxygen: 21,
-      carbonDioxide: 5,
-      humidity: 95,
-    },
-    associatedExperimentIds: ['EXP-002'],
-    references: ['Demonstration data — ethical and historical context applies to real HeLa use'],
-  },
-  {
-    id: 'ORG-005',
-    commonName: 'Green Fluorescent Protein',
-    scientificName: 'Green fluorescent protein (Aequorea victoria)',
-    category: 'proteins',
-    classification: 'Structural protein; β-barrel fold with chromophore',
-    description:
-      'A protein that emits green fluorescence when exposed to blue light. Used as a reporter in molecular biology.',
-    characteristics: [
-      '238 amino acids',
-      'Autocatalytic chromophore formation',
-      'Stable under neutral pH',
-      'Denatures at extreme pH/temperature',
-    ],
-    preferredEnvironment: {
-      temperature: 25,
-      ph: 7.0,
-    },
-    associatedExperimentIds: [],
-    references: ['Demonstration data'],
-  },
-  {
-    id: 'ORG-006',
-    commonName: 'Prion Protein (PrP)',
-    scientificName: 'Prion protein (demonstration)',
-    category: 'prions',
-    classification: 'Misfolded proteinaceous infectious particle',
-    description:
-      'Prions are misfolded proteins that propagate by inducing conformational change in normal protein variants. Educational entry only.',
-    characteristics: [
-      'Protein-only infectious agent',
-      'Conformation-dependent infectivity',
-      'Extremely resistant to standard decontamination',
-      'Associated with TSE diseases',
-    ],
-    preferredEnvironment: {},
-    associatedExperimentIds: [],
-    references: ['Educational reference — see Safety section for handling principles'],
   },
 ];
 
@@ -275,7 +141,7 @@ export const demoExperiments: Experiment[] = [
     researchQuestion: 'How does temperature affect E. coli population growth in broth culture?',
     hypothesis: 'E. coli growth rate will peak near 37°C and decline significantly above 42°C.',
     sampleId: 'SMP-001',
-    organismId: 'ORG-001',
+    organismId: 'ORG-ECOLI',
     controlGroup: 'E. coli at 37°C, standard LB medium',
     experimentalGroup: 'E. coli at elevated temperature (42°C)',
     independentVariables: [
@@ -305,7 +171,7 @@ export const demoExperiments: Experiment[] = [
     researchQuestion: 'What effect does acidic pH have on mammalian cell viability?',
     hypothesis: 'Reducing pH below 6.5 will increase cellular stress and reduce viability.',
     sampleId: 'SMP-002',
-    organismId: 'ORG-004',
+    organismId: 'ORG-HELA',
     controlGroup: 'HeLa cells at pH 7.4',
     experimentalGroup: 'HeLa cells at pH 6.2',
     independentVariables: [

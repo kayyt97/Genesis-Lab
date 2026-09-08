@@ -13,7 +13,7 @@ import { useLanguage } from '../components/ui/LanguageControl';
 import { useAppState, generateId } from '../store/AppContext';
 import { organismIndex } from '../catalogue/index';
 import { getReferenceById } from '../data/biologicalLibrary';
-import { demoOrganisms } from '../data/demoData';
+import { resolveCatalogueOrganismId } from '../services/demoCatalogueIdMap';
 import type { MicroscopeMagnification, MicroscopeSpecimen } from '../types/scientific';
 
 const MAGS: MicroscopeMagnification[] = [40, 100, 400, 1000];
@@ -299,14 +299,15 @@ export function VirtualMicroscopePage() {
 
   const loadFromVirtualLab = () => {
     const sim = state.activeSimulation;
-    const org = demoOrganisms.find((o) => o.id === sim?.organismId);
+    const catalogueId = resolveCatalogueOrganismId(sim?.organismId);
+    const org = catalogueId ? organismIndex.getById(catalogueId) : undefined;
     loadSpecimen({
       id: generateId('MS'),
-      label: org ? `${org.commonName} (Virtual Lab)` : 'Virtual Lab sample',
+      label: org ? `${org.name} (Virtual Lab)` : 'Virtual Lab sample',
       sourceType: 'virtual-lab',
-      sourceId: sim?.organismId,
+      sourceId: catalogueId ?? sim?.organismId,
       organismCategory: org?.category,
-      morphologySupported: true,
+      morphologySupported: org?.morphologySupported ?? true,
       simulatedViability: sim?.organismState.viability,
       notes: sim ? `Modelled viability: ${sim.organismState.viability.toFixed(1)}%` : undefined,
     });
