@@ -240,7 +240,7 @@ export function PathwayExplorerPage() {
                         <div className="pathway-branch">
                           <p className="text-muted">{resolveTiered(n.description, languageLevel)}</p>
                           {n.linkedGeneId && (
-                            <Button variant="ghost" size="sm" onClick={() => navigate(`/genome-explorer`)}>
+                            <Button variant="secondary" size="sm" onClick={() => navigate(`/genome-explorer`)}>
                               Open gene in Genome Explorer
                             </Button>
                           )}
@@ -279,7 +279,7 @@ export function PathwayExplorerPage() {
                   )}
                   <div className="pathway-links">
                     {node.linkedGeneId && (
-                      <Button variant="ghost" onClick={() => {
+                      <Button variant="secondary" onClick={() => {
                         const gene = REFERENCE_GENES.find((g) => g.id === node.linkedGeneId);
                         navigate(gene ? `/genome-explorer?gene=${gene.symbol}` : '/genome-explorer');
                       }}>
@@ -287,11 +287,11 @@ export function PathwayExplorerPage() {
                       </Button>
                     )}
                     {node.linkedMoleculeId && (
-                      <Button variant="ghost" onClick={() => navigate(`/molecule-explorer?mol=${node.linkedMoleculeId}`)}>
+                      <Button variant="secondary" onClick={() => navigate(`/molecule-explorer?mol=${node.linkedMoleculeId}`)}>
                         Open in Molecule Explorer
                       </Button>
                     )}
-                    <Button variant="ghost" onClick={() => navigate('/virtual-lab')}>
+                    <Button variant="secondary" onClick={() => navigate('/virtual-lab')}>
                       Send context to Virtual Lab
                     </Button>
                   </div>

@@ -29,36 +29,36 @@ export function EntityActions({ ctx, organism, gene, molecule }: EntityActionsPr
       actions.push({ label: 'View Under Microscope', onClick: () => sendOrganismToMicroscope(ctx, organism), variant: 'secondary' });
     }
     if (organism.relatedGenes?.length) {
-      actions.push({ label: 'Open Related Genes', onClick: () => ctx.navigate('/genome-explorer'), variant: 'ghost' });
+      actions.push({ label: 'Open Related Genes', onClick: () => ctx.navigate('/genome-explorer'), variant: 'secondary' });
     }
     if (organism.relatedPathways?.length) {
-      actions.push({ label: 'Open Related Pathway', onClick: () => ctx.navigate('/pathway-explorer'), variant: 'ghost' });
+      actions.push({ label: 'Open Related Pathway', onClick: () => ctx.navigate('/pathway-explorer'), variant: 'secondary' });
     }
     actions.push({
       label: 'Add to Notebook',
       onClick: () => addEntityToNotebook(ctx, `Reference: ${organism.name}`, organism.summary.standard, ['organism', organism.category]),
-      variant: 'ghost',
+      variant: 'secondary',
     });
   }
 
   if (gene) {
     actions.push({ label: 'Centre on Gene', onClick: () => openGeneInGenome(ctx, gene), variant: 'secondary' });
-    actions.push({ label: 'Open Pathway', onClick: () => openGeneInPathway(ctx, gene), variant: 'ghost' });
-    actions.push({ label: 'Therapeutic Context', onClick: () => ctx.navigate('/therapeutic-design'), variant: 'ghost' });
+    actions.push({ label: 'Open Pathway', onClick: () => openGeneInPathway(ctx, gene), variant: 'secondary' });
+    actions.push({ label: 'Therapeutic Context', onClick: () => ctx.navigate('/therapeutic-design'), variant: 'secondary' });
     actions.push({
       label: 'Add to Notebook',
       onClick: () => addEntityToNotebook(ctx, `Gene: ${gene.symbol}`, gene.function.standard, ['gene', gene.symbol]),
-      variant: 'ghost',
+      variant: 'secondary',
     });
   }
 
   if (molecule) {
     actions.push({ label: 'Open in Molecule Explorer', onClick: () => openMoleculeInExplorer(ctx, molecule), variant: 'secondary' });
-    actions.push({ label: 'Open Pathway Explorer', onClick: () => openMoleculeInPathway(ctx, molecule), variant: 'ghost' });
+    actions.push({ label: 'Open Pathway Explorer', onClick: () => openMoleculeInPathway(ctx, molecule), variant: 'secondary' });
     actions.push({
       label: 'Add to Notebook',
       onClick: () => addEntityToNotebook(ctx, `Molecule: ${molecule.name}`, molecule.biologicalRole.standard, ['molecule', molecule.formula]),
-      variant: 'ghost',
+      variant: 'secondary',
     });
   }
 
@@ -67,7 +67,7 @@ export function EntityActions({ ctx, organism, gene, molecule }: EntityActionsPr
   return (
     <div className="entity-actions">
       {actions.map((a) => (
-        <Button key={a.label} variant={a.variant ?? 'ghost'} size="sm" onClick={a.onClick}>
+        <Button key={a.label} variant={a.variant ?? 'secondary'} onClick={a.onClick}>
           {a.label}
         </Button>
       ))}

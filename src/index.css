@@ -1766,8 +1766,16 @@ input[type="range"] {
 .viability-metric { font-size: 13px; }
 .viability-category { font-weight: 600; }
 .viability-limiting { font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
-.design-check-list { list-style: none; margin: 12px 0; padding: 0; }
+.design-check-list {
+  list-style: none;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--bg-primary);
+}
 .design-check { padding: 6px 0; font-size: 13px; }
+.design-check + .design-check { border-top: 1px solid var(--border-subtle); }
 .design-check-pass { color: #66bb6a; }
 .design-check-warn { color: #fbbf24; }
 .design-check-info { color: var(--text-secondary); }
@@ -1901,8 +1909,20 @@ input[type="range"] {
 .sim-controls .btn-secondary:active:not(:disabled) {
   transform: translateY(1px);
 }
-.sim-controls .btn-secondary:disabled,
-.sim-controls .btn-primary:disabled {
+/* Pause/Resume share this class: keep identical chrome when one is disabled */
+.sim-controls .sim-control-btn.btn-secondary:disabled {
+  opacity: 1;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  cursor: not-allowed;
+}
+.sim-controls .sim-control-btn.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* Non–sim-control secondary buttons in .sim-controls (e.g. Atomic Lab) */
+.sim-controls .btn-secondary:disabled:not(.sim-control-btn) {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -1971,6 +1991,10 @@ input[type="range"] {
 .gene-tabs-scroll { flex-wrap: wrap; max-height: 120px; overflow-y: auto; }
 .learning-topic-badge { display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 8px; }
 .teaching-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.teaching-control-group { margin: 16px 0; padding-top: 4px; }
+.teaching-scenario-tabs { margin-top: 8px; }
+.teaching-scenario-body { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border-subtle); }
+.teaching-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
 .category-chips { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; padding-bottom: 4px; }
 .scroll-x { -webkit-overflow-scrolling: touch; }

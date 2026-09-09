@@ -175,7 +175,7 @@ export function AtomicLabPage() {
             <dt>Stable isotopes known</dt>
             <dd>{hasStableIsotopes(element.symbol) ? 'Yes — see isotope table' : 'No stable isotopes of this element are known.'}</dd>
           </dl>
-          <Button variant="ghost" onClick={() => setShowIsotopeTable(!showIsotopeTable)}>
+          <Button variant="secondary" onClick={() => setShowIsotopeTable(!showIsotopeTable)}>
             {showIsotopeTable ? 'Hide isotope table' : 'View isotope table'}
           </Button>
           {showIsotopeTable && (
@@ -290,7 +290,7 @@ export function AtomicLabPage() {
           <div className="sim-controls">
             <Button variant="secondary" onClick={tryBond} disabled={atoms.length < 2}>Test bond (last two atoms)</Button>
             <Button variant="secondary" onClick={removeSelectedAtom} disabled={!selectedAtomId}>Remove selected</Button>
-            <Button variant="ghost" onClick={clearWorkspace} disabled={atoms.length === 0}>Clear workspace</Button>
+            <Button variant="secondary" onClick={clearWorkspace} disabled={atoms.length === 0}>Clear workspace</Button>
           </div>
           <ul className="bond-log">
             {bondLog.slice(-5).map((m, i) => <li key={i}>{m}</li>)}
