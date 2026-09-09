@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -10,18 +11,36 @@ import { explainSimulationResult } from '../services/explanationEngine';
 import { getPathwaysForGene } from '../services/pathwaySearch';
 import { GENE_CATALOGUE } from '../catalogue/data/genes';
 import { getReferenceById } from '../data/biologicalLibrary';
+import { formatPopulation } from '../simulation/engine';
+import type { Simulation } from '../types';
+
+function formatSimMetrics(label: string, sim: Simulation): string {
+  const s = sim.organismState;
+  return (
+    `${label}\n` +
+    `  Status: ${sim.status}\n` +
+    `  Elapsed: ${sim.timeHours.toFixed(1)} h (tick ${sim.currentTick})\n` +
+    `  Viability (modelled): ${s.viability.toFixed(1)}%\n` +
+    `  Population (modelled): ${formatPopulation(s.population)}\n` +
+    `  Stress index (modelled): ${s.stress.toFixed(1)}\n` +
+    `  Environment: T=${sim.environment.temperature}°C, pH=${sim.environment.ph}, O₂=${sim.environment.oxygen}%`
+  );
+}
 
 export function ResearchAssistantPage() {
   const { state } = useAppState();
   const languageLevel = useLanguage();
   const [response, setResponse] = useState('');
+  const [showVirtualLabLink, setShowVirtualLabLink] = useState(false);
 
   const project = state.projects.find((p) => p.id === state.settings.activeProjectId);
   const sim = state.activeSimulation;
+  const controlSim = state.controlSimulation;
   const specimen = state.microscopeSpecimen;
   const genome = state.genomeUpload;
 
   const explainResult = () => {
+    setShowVirtualLabLink(false);
     setResponse(resolveTiered(SIMULATION_DISCLAIMER, languageLevel) + '\n\n' +
       (sim
         ? `Active simulation: ${sim.organismState.viability.toFixed(1)}% viability, tick ${sim.currentTick}.`
@@ -29,6 +48,7 @@ export function ResearchAssistantPage() {
   };
 
   const whyChange = () => {
+    setShowVirtualLabLink(false);
     const prior = state.priorSimulationSnapshot;
     if (!prior || !sim) {
       setResponse('Run two simulation states with "Save baseline" first, then change a parameter and ask again.');
@@ -49,6 +69,7 @@ export function ResearchAssistantPage() {
   };
 
   const suggestVariable = () => {
+    setShowVirtualLabLink(false);
     setResponse(
       project
         ? `Active project: "${project.title}". Consider investigating ${project.hypothesis ? 'variables linked to your hypothesis' : 'temperature or pH as starting points'}.`
@@ -57,6 +78,7 @@ export function ResearchAssistantPage() {
   };
 
   const explainGenomeContext = () => {
+    setShowVirtualLabLink(false);
     if (!genome) {
       setResponse('No uploaded genotype data. Upload a file in Genome Explorer for local analysis.');
       return;
@@ -74,6 +96,7 @@ export function ResearchAssistantPage() {
   };
 
   const explainPathwayContext = () => {
+    setShowVirtualLabLink(false);
     const gene = GENE_CATALOGUE[0];
     const pathways = getPathwaysForGene(gene.id);
     setResponse(
@@ -84,19 +107,34 @@ export function ResearchAssistantPage() {
   };
 
   const compareControlExperiment = () => {
-    if (!state.settings.autoControlEnabled) {
-      setResponse('Auto-control is off. Enable it in Settings or Virtual Lab to compare experimental and control conditions.');
+    if (!sim || !controlSim) {
+      setShowVirtualLabLink(true);
+      const missing = [
+        !sim ? 'No experimental (active) simulation is available.' : null,
+        !controlSim ? 'No control simulation is available.' : null,
+      ].filter(Boolean).join(' ');
+      setResponse(
+        `A control comparison cannot currently be performed.\n${missing}\n\n` +
+        'Open Virtual Lab, select a sample, enable auto-control (or create a control condition), and run both the experimental and control simulations. Then return here to compare modelled metrics.\n\n' +
+        'This assistant never invents missing control data.',
+      );
       return;
     }
+
+    setShowVirtualLabLink(false);
+    const viabDelta = sim.organismState.viability - controlSim.organismState.viability;
     setResponse(
-      'Control vs experimental comparison:\n' +
-      (sim
-        ? `Experimental viability (modelled): ${sim.organismState.viability.toFixed(1)}%\nCompare against control baseline in Virtual Lab.\n\nThis is simulated data — not experimental observation.`
-        : 'No active simulation to compare.'),
+      'Control vs Experiment — modelled educational comparison\n' +
+      '(Uses stored simulation state only — not a clinical or laboratory result.)\n\n' +
+      `${formatSimMetrics('Control', controlSim)}\n\n` +
+      `${formatSimMetrics('Experiment', sim)}\n\n` +
+      `Viability difference (Experiment − Control): ${viabDelta >= 0 ? '+' : ''}${viabDelta.toFixed(1)} percentage points (modelled).\n\n` +
+      'These figures are prototype educational model outputs, not validated biological observations.',
     );
   };
 
   const whatToLearnNext = () => {
+    setShowVirtualLabLink(false);
     setResponse(
       'Suggested exploration paths:\n' +
       '• Change one environmental variable and save a baseline first\n' +
@@ -108,6 +146,7 @@ export function ResearchAssistantPage() {
   };
 
   const explainMicroscopeContext = () => {
+    setShowVirtualLabLink(false);
     if (!specimen) {
       setResponse('No specimen loaded in Virtual Microscope. Load a reference specimen or send a sample from Virtual Lab.');
       return;
@@ -127,6 +166,7 @@ export function ResearchAssistantPage() {
   };
 
   const explainVirtualLabEnv = () => {
+    setShowVirtualLabLink(false);
     if (!sim) {
       setResponse('No active Virtual Lab simulation.');
       return;
@@ -182,6 +222,11 @@ export function ResearchAssistantPage() {
       {response && (
         <Card title="Response">
           <p style={{ whiteSpace: 'pre-wrap' }}>{response}</p>
+          {showVirtualLabLink && (
+            <p className="handoff-actions">
+              <Link to="/virtual-lab"><Button variant="secondary">Open Virtual Lab</Button></Link>
+            </p>
+          )}
         </Card>
       )}
     </div>

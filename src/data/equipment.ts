@@ -11,6 +11,7 @@ export const EQUIPMENT: EquipmentDefinition[] = [
       technical: 'Compound light microscope with objective lens system (simulated).',
     },
     measures: ['Magnification', 'Contrast', 'Field of view'],
+    /** Opens dedicated Virtual Microscope — not an in-card instrument simulator. */
     status: 'interactive',
   },
   {
@@ -71,6 +72,7 @@ export const EQUIPMENT: EquipmentDefinition[] = [
       technical: 'Closed-loop T/RH/CO₂ control (linked to Virtual Lab environment).',
     },
     measures: ['Temperature', 'Humidity', 'CO₂', 'Time'],
+    /** Opens dedicated Virtual Lab environment controls — not an in-card incubator. */
     status: 'interactive',
   },
   {

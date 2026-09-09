@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 import { EvidenceBadge } from '../components/ui/EvidenceBadge';
 import { resolveTiered } from '../content/language';
 import { useLanguage } from '../components/ui/LanguageControl';
@@ -43,6 +45,22 @@ export function EquipmentLabPage() {
             <h4>Measures</h4>
             <ul>{eq.measures.map((m) => <li key={m}>{m}</li>)}</ul>
             {eq.id === 'EQ-PIP' && <PipettingHelper />}
+            {eq.id === 'EQ-MICRO' && (
+              <div className="handoff-actions">
+                <p className="text-muted">
+                  This Equipment card does not simulate optics here. Open the dedicated Virtual Microscope tool to explore educational fields of view.
+                </p>
+                <Link to="/microscope"><Button variant="secondary">Open Virtual Microscope</Button></Link>
+              </div>
+            )}
+            {eq.id === 'EQ-INC' && (
+              <div className="handoff-actions">
+                <p className="text-muted">
+                  This Equipment card does not run an incubator model here. Open Virtual Lab to adjust temperature, humidity, and gas conditions in the educational simulation.
+                </p>
+                <Link to="/virtual-lab"><Button variant="secondary">Open Virtual Lab</Button></Link>
+              </div>
+            )}
             {eq.status === 'conceptual' && (
               <p className="text-muted future-tag">Interactive simulation for this instrument is planned in a future update.</p>
             )}
