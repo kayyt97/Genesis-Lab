@@ -287,7 +287,7 @@ export function AtomicLabPage() {
               </ul>
             )}
           </div>
-          <div className="sim-controls">
+          <div className="handoff-actions">
             <Button variant="secondary" onClick={tryBond} disabled={atoms.length < 2}>Test bond (last two atoms)</Button>
             <Button variant="secondary" onClick={removeSelectedAtom} disabled={!selectedAtomId}>Remove selected</Button>
             <Button variant="secondary" onClick={clearWorkspace} disabled={atoms.length === 0}>Clear workspace</Button>

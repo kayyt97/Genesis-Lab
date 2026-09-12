@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Local deployment artifacts (never commit)
+.deploy/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

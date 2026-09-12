@@ -447,7 +447,13 @@ export function VirtualLabPage() {
           {!state.settings.autoControlEnabled && (
             <p className="text-muted warn-text">Auto-control off: interpretation without a control may be harder.</p>
           )}
-          <Button variant="ghost" onClick={() => setShowDesignCheck(!showDesignCheck)}>Design Check</Button>
+          <Button
+            variant={showDesignCheck ? 'primary' : 'secondary'}
+            aria-pressed={showDesignCheck}
+            onClick={() => setShowDesignCheck(!showDesignCheck)}
+          >
+            Design Check
+          </Button>
           {showDesignCheck && (
             <ul className="design-check-list">
               {designChecks.map((c) => (
@@ -486,7 +492,7 @@ export function VirtualLabPage() {
               });
               navigate('/microscope');
             }}>Send to Microscope</Button>
-            <Button variant="ghost" onClick={() => navigate('/pathway-explorer')}>Open in Pathway Explorer</Button>
+            <Button variant="secondary" onClick={() => navigate('/pathway-explorer')}>Open in Pathway Explorer</Button>
           </div>
           <div className="speed-control">
             <label>Speed: {sim?.speed ?? 1}×
