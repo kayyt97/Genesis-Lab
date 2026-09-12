@@ -11,9 +11,17 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
 
 # Local deployment artifacts (never commit)
 .deploy/
+
+# Backend build output
+backend/dist/
+backend/.env
+backend/node_modules/
 
 # Editor directories and files
 .vscode/*
