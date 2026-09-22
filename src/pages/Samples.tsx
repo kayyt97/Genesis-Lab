@@ -50,7 +50,7 @@ export function SamplesPage() {
     <div className="samples-page">
       <PageHeader
         title="Samples"
-        subtitle="Virtual sample management — not certified laboratory inventory"
+        subtitle="Virtual sample management — not certified laboratory inventory. Tumour cell lines are labelled separately from neoplasm taxonomy entries."
         actions={<Button onClick={() => setShowForm(true)}>Create Sample</Button>}
       />
 

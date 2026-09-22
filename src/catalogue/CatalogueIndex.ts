@@ -1,21 +1,53 @@
-import type { CatalogueEntityBase, CataloguePage, CatalogueQuery, MoleculeCatalogueEntry, SortField } from './types';
+import type { CatalogueEntityBase, CataloguePage, CatalogueQuery, MoleculeCatalogueEntry, OrganismCatalogueEntry, SortField } from './types';
 
-function normalizeSearch(q: string): string {
-  return q.toLowerCase().trim();
+/** Normalize British/American spelling variants for catalogue search */
+export function normalizeSearch(q: string): string {
+  return q
+    .toLowerCase()
+    .trim()
+    .replace(/\btumours\b/g, 'tumors')
+    .replace(/\btumour\b/g, 'tumor')
+    .replace(/\bleukaemia\b/g, 'leukemia')
+    .replace(/\bleukaemias\b/g, 'leukemias')
+    .replace(/\boesophageal\b/g, 'esophageal')
+    .replace(/\bhaematopoietic\b/g, 'hematopoietic')
+    .replace(/\bpaediatric\b/g, 'pediatric');
+}
+
+function searchHaystack(entity: CatalogueEntityBase): string {
+  const mol = entity as MoleculeCatalogueEntry;
+  const org = entity as unknown as OrganismCatalogueEntry;
+  const parts = [
+    entity.name,
+    entity.id,
+    entity.category,
+    entity.category.replace(/-/g, ' '),
+    entity.subcategory ?? '',
+    ...entity.aliases,
+    ...entity.tags,
+    ...entity.keywords,
+    mol.formula ?? '',
+    ...(mol.elements ?? []),
+    org.scientificName ?? '',
+    org.taxonomy ?? '',
+    org.behaviour ?? '',
+    org.bodySystem ?? '',
+    org.tumourFamily ?? '',
+    org.neoplasticStatus ?? '',
+    ...(org.icdoMorphologyCodes ?? []),
+    org.ncitCode ?? '',
+  ];
+  return normalizeSearch(parts.join(' '));
 }
 
 function matchesSearch(entity: CatalogueEntityBase, q: string): boolean {
   if (!q) return true;
   const n = normalizeSearch(q);
-  if (entity.name.toLowerCase().includes(n)) return true;
-  if (entity.id.toLowerCase().includes(n)) return true;
-  if (entity.category.toLowerCase().includes(n) || entity.category.replace(/-/g, ' ').includes(n)) return true;
-  if (entity.aliases.some((a) => a.toLowerCase().includes(n))) return true;
-  if (entity.tags.some((t) => t.toLowerCase().includes(n))) return true;
-  if (entity.keywords.some((k) => k.toLowerCase().includes(n))) return true;
-  const mol = entity as MoleculeCatalogueEntry;
-  if (mol.formula?.toLowerCase().includes(n)) return true;
-  if (mol.elements?.some((el) => el.toLowerCase() === n || el.toLowerCase().includes(n))) return true;
+  if (!n) return true;
+  const hay = searchHaystack(entity);
+  if (hay.includes(n)) return true;
+  // Also try raw lowercase for id-style queries
+  if (entity.id.toLowerCase().includes(q.toLowerCase().trim())) return true;
   return false;
 }
 
@@ -99,6 +131,33 @@ export class CatalogueIndex<T extends CatalogueEntityBase> {
     }
     if (params.tags?.length) {
       filtered = filtered.filter((e) => params.tags!.every((t) => e.tags.includes(t)));
+    }
+    if (params.behaviour && params.behaviour !== 'all') {
+      filtered = filtered.filter((e) => (e as unknown as OrganismCatalogueEntry).behaviour === params.behaviour);
+    }
+    if (params.bodySystem && params.bodySystem !== 'all') {
+      filtered = filtered.filter((e) => (e as unknown as OrganismCatalogueEntry).bodySystem === params.bodySystem);
+    }
+    if (params.tumourFamily && params.tumourFamily !== 'all') {
+      filtered = filtered.filter((e) => (e as unknown as OrganismCatalogueEntry).tumourFamily === params.tumourFamily);
+    }
+    if (params.ageGroup && params.ageGroup !== 'all') {
+      filtered = filtered.filter((e) => {
+        const age = (e as unknown as OrganismCatalogueEntry).ageGroup ?? 'any';
+        if (params.ageGroup === 'paediatric') return age === 'paediatric';
+        if (params.ageGroup === 'adult') return age === 'adult' || age === 'any';
+        return age === params.ageGroup;
+      });
+    }
+    if (params.tissueForm && params.tissueForm !== 'all') {
+      filtered = filtered.filter((e) => (e as unknown as OrganismCatalogueEntry).tissueForm === params.tissueForm);
+    }
+    if (typeof params.simulationReady === 'boolean') {
+      filtered = filtered.filter((e) => {
+        const org = e as unknown as OrganismCatalogueEntry;
+        const ready = org.simulationReady ?? org.compatibleModules.includes('virtual-lab');
+        return ready === params.simulationReady;
+      });
     }
     if (params.search) {
       filtered = filtered.filter((e) => matchesSearch(e, params.search!));

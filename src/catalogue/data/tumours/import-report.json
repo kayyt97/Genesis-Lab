@@ -1,0 +1,71 @@
+{
+  "importedAt": "2026-09-22T22:48:31.491Z",
+  "source": {
+    "primarySource": "NCI Thesaurus Neoplasm Core",
+    "publisher": "NCI Enterprise Vocabulary Services (EVS)",
+    "downloadBase": "https://evs.nci.nih.gov/ftp1/NCI_Thesaurus/Neoplasm",
+    "reviewDate": "2026-09-22",
+    "ncitLicenseNote": "NCIt is published by NCI EVS as free, non-licence-restricted biomedical terminology. Prefer terms, codes, synonyms, neoplastic status, and hierarchy from Neoplasm Core with attribution.",
+    "icdoNote": "ICD-O morphology codes included only when present as NCIm source=ICDO mappings for a Core concept (typically ICD-O-3 style morph/behaviour codes). Full ICD-O-4 morphology and topography tables are IARC/WHO copyright and are not bundled; see https://tumourclassification.iarc.who.int/icd-o-4/",
+    "genesisPolicy": "Genesis Lab writes original educational framing. NCI definitions are stored as attributed sourceDefinition fields and are not claimed as Genesis Lab original prose."
+  },
+  "files": {
+    "core": "Neoplasm_Core.txt",
+    "hierarchy": "Neoplasm_Core_Hierarchy.txt",
+    "mappings": "Neoplasm_Core_Mappings_NCIm_Terms.csv",
+    "cacheDir": "data/tumour-sources/ (gitignored download cache)"
+  },
+  "counts": {
+    "neoplasmCoreConcepts": 1365,
+    "withIcdoMapping": 512,
+    "icdoMappingRows": 1046,
+    "withBodySystem": 1259,
+    "withMorphFamily": 1275,
+    "paediatricTagged": 13,
+    "bloodLymphoid": 299,
+    "solid": 1066,
+    "simulationReadyTaxonomy": 0
+  },
+  "statusCounts": {
+    "Benign": 118,
+    "Malignant": 1026,
+    "Undetermined": 203,
+    "Precancerous": 3,
+    "Uncertain Malignant Potential": 15
+  },
+  "systemCounts": {
+    "Skin Neoplasm": 74,
+    "Hematopoietic and Lymphoid System Neoplasm": 277,
+    "Nervous System Neoplasm": 183,
+    "(no site placement)": 106,
+    "Connective and Soft Tissue Neoplasm": 107,
+    "Digestive System Neoplasm": 166,
+    "Reproductive System Neoplasm": 105,
+    "Peritoneal and Retroperitoneal Neoplasms": 14,
+    "Thoracic Neoplasm": 69,
+    "Urinary System Neoplasm": 63,
+    "Endocrine Neoplasm": 30,
+    "Breast Neoplasm": 52,
+    "Eye Neoplasm": 20,
+    "Head and Neck Neoplasm": 92,
+    "Cardiovascular Neoplasm": 4,
+    "Respiratory Tract Neoplasm": 3
+  },
+  "formCounts": {
+    "solid": 1066,
+    "blood-lymphoid": 299
+  },
+  "exclusions": {
+    "missingCode": 0,
+    "missingPreferredTerm": 0,
+    "emptyStatus": 3
+  },
+  "licensingLimits": [
+    "Full ICD-O-4 morphology and topography tables are not bundled (IARC/WHO copyright; wider reproduction requires permission).",
+    "ICD-O codes present are those linked via NCIm ICDO mappings to Neoplasm Core concepts (commonly ICD-O-3 style).",
+    "NCI cancer.gov page prose is not scraped or copied; only search links are provided.",
+    "Neoplasm Core is a curated core (~1.4k concepts), not a claim of every rare entity in full NCIt or every ICD-O code.",
+    "Site–histology pairs are not invented: hierarchy placements come only from Neoplasm Core hierarchy files."
+  ],
+  "completenessStatement": "This catalogue mirrors NCI Thesaurus Neoplasm Core membership and hierarchy for the downloaded release. It is not a literal claim of completeness of all recognised tumours worldwide or of ICD-O-4."
+}

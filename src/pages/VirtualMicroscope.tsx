@@ -26,7 +26,56 @@ const SCALE_UM: Record<MicroscopeMagnification, number> = {
 };
 
 /** Educational visual specimen families */
-type SpecimenKind = 'epithelial' | 'blood' | 'plant' | 'bacteria' | 'tissue' | 'fungi';
+type SpecimenKind = 'epithelial' | 'blood' | 'plant' | 'bacteria' | 'tissue' | 'fungi' | 'tumour-culture' | 'tumour-blood';
+
+function resolveSpecimenKind(specimen: MicroscopeSpecimen | null): SpecimenKind {
+  if (!specimen) return 'epithelial';
+  const ref = specimen.sourceId ? getReferenceById(specimen.sourceId) : undefined;
+  const cat = (specimen.organismCategory ?? ref?.category ?? '').toLowerCase();
+  const sub = (ref?.subcategory ?? '').toLowerCase();
+  const label = `${specimen.label} ${ref?.name ?? ''} ${ref?.morphology ?? ''}`.toLowerCase();
+  const tissueForm = (ref?.tissueForm ?? '').toLowerCase();
+
+  if (cat === 'tumours-cancer' || /tumour|tumor|neoplasm|carcinoma|sarcoma|glioblastoma|hela|mcf-7|a549|ht-29|pc-3|u-87/.test(label)) {
+    if (tissueForm === 'blood-lymphoid' || sub.includes('blood') || /leukemia|leukaemia|lymphoma|jurkat|k-562|k562|blood smear/.test(label)) {
+      return 'tumour-blood';
+    }
+    return 'tumour-culture';
+  }
+  if (cat === 'bacteria' || cat === 'archaea' || /bacillus|cocci|rod|microbe|microorganism/.test(label)) {
+    return 'bacteria';
+  }
+  if (cat === 'plant-cells' || /onion|plant|epidermis|mesophyll|guard cell|xylem|phloem/.test(label)) {
+    return 'plant';
+  }
+  if (cat === 'tissues' || /tissue|lobule|histolog|liver|mucosa|muscle|cortex/.test(label)) {
+    return 'tissue';
+  }
+  if (cat === 'fungi' || /yeast|fungi|candida|budding/.test(label)) {
+    return 'fungi';
+  }
+  if (sub === 'blood' || /blood|erythrocyte|neutrophil|lymphocyte|monocyte|platelet|wbc|rbc/.test(label)) {
+    return 'blood';
+  }
+  if (sub === 'epithelial' || cat === 'mammalian-cells' || /epithelial|keratinocyte|enterocyte/.test(label)) {
+    return 'epithelial';
+  }
+  if (cat === 'mammalian-cells') return 'epithelial';
+  return 'epithelial';
+}
+
+function kindTitle(kind: SpecimenKind): string {
+  switch (kind) {
+    case 'epithelial': return 'Epithelial / cultured cells';
+    case 'blood': return 'Blood smear';
+    case 'plant': return 'Plant cells';
+    case 'bacteria': return 'Bacteria / microorganisms';
+    case 'tissue': return 'Tissue section';
+    case 'fungi': return 'Fungi / yeast';
+    case 'tumour-culture': return 'Tumour cell culture (generated diagram)';
+    case 'tumour-blood': return 'Blood/lymphoid neoplasm smear (generated diagram)';
+  }
+}
 
 interface StructureLabel {
   id: string;
@@ -46,46 +95,6 @@ interface EduPanel {
   magChange: string;
   useful: string;
   limitations: string;
-}
-
-function resolveSpecimenKind(specimen: MicroscopeSpecimen | null): SpecimenKind {
-  if (!specimen) return 'epithelial';
-  const ref = specimen.sourceId ? getReferenceById(specimen.sourceId) : undefined;
-  const cat = (specimen.organismCategory ?? ref?.category ?? '').toLowerCase();
-  const sub = (ref?.subcategory ?? '').toLowerCase();
-  const label = `${specimen.label} ${ref?.name ?? ''} ${ref?.morphology ?? ''}`.toLowerCase();
-
-  if (cat === 'bacteria' || cat === 'archaea' || /bacillus|cocci|rod|microbe|microorganism/.test(label)) {
-    return 'bacteria';
-  }
-  if (cat === 'plant-cells' || /onion|plant|epidermis|mesophyll|guard cell|xylem|phloem/.test(label)) {
-    return 'plant';
-  }
-  if (cat === 'tissues' || /tissue|lobule|histolog|liver|mucosa|muscle|cortex/.test(label)) {
-    return 'tissue';
-  }
-  if (cat === 'fungi' || /yeast|fungi|candida|budding/.test(label)) {
-    return 'fungi';
-  }
-  if (sub === 'blood' || /blood|erythrocyte|neutrophil|lymphocyte|monocyte|platelet|wbc|rbc/.test(label)) {
-    return 'blood';
-  }
-  if (sub === 'epithelial' || cat === 'mammalian-cells' || /epithelial|hela|keratinocyte|enterocyte/.test(label)) {
-    return 'epithelial';
-  }
-  if (cat === 'mammalian-cells') return 'epithelial';
-  return 'epithelial';
-}
-
-function kindTitle(kind: SpecimenKind): string {
-  switch (kind) {
-    case 'epithelial': return 'Epithelial / cultured cells';
-    case 'blood': return 'Blood smear';
-    case 'plant': return 'Plant cells';
-    case 'bacteria': return 'Bacteria / microorganisms';
-    case 'tissue': return 'Tissue section';
-    case 'fungi': return 'Fungi / yeast';
-  }
 }
 
 function getLabelsForKind(kind: SpecimenKind): StructureLabel[] {
@@ -127,6 +136,22 @@ function getLabelsForKind(kind: SpecimenKind): StructureLabel[] {
         { id: 'bud', label: 'Bud', simple: 'A new cell growing from the parent.', standard: 'Budding daughter cell.', technical: 'Asymmetric mitotic budding.', x: 58, y: 42, minMag: 400 },
         { id: 'nucleus', label: 'Nucleus', simple: 'Control centre holding DNA.', standard: 'Nucleus.', technical: 'Eukaryotic nucleus (small).', x: 46, y: 50, minMag: 400 },
         { id: 'vacuole', label: 'Vacuole', simple: 'Storage compartment inside the cell.', standard: 'Yeast vacuole.', technical: 'Prominent vacuolar compartment.', x: 48, y: 55, minMag: 1000 },
+      ];
+    case 'tumour-blood':
+      return [
+        { id: 'smear', label: 'Smear field', simple: 'A spread of blood cells (generated diagram).', standard: 'Educational leukemic smear overview.', technical: 'Generated diagram — not a patient slide.', x: 50, y: 50, minMag: 40 },
+        { id: 'rbc', label: 'Erythrocyte', simple: 'Red blood cell background.', standard: 'Anucleate RBC.', technical: 'Background erythrocytes in smear.', x: 40, y: 55, minMag: 400 },
+        { id: 'blast', label: 'Atypical / blast-like cell', simple: 'Larger nucleated cell used to teach blood cancers.', standard: 'Atypical lymphoid/myeloid cell cue.', technical: 'Educational blast-like morphology — not diagnostic.', x: 58, y: 42, minMag: 400 },
+        { id: 'nucleus', label: 'Nucleus', simple: 'Large nucleus in the atypical cell.', standard: 'High nuclear:cytoplasmic ratio cue.', technical: 'Generated nuclear morphology for teaching.', x: 58, y: 42, minMag: 1000 },
+      ];
+    case 'tumour-culture':
+      return [
+        { id: 'monolayer', label: 'Culture field', simple: 'Crowded cultured cells (generated diagram).', standard: 'Tumour cell-line monolayer overview.', technical: 'Generated diagram — not real histology photography.', x: 50, y: 48, minMag: 40 },
+        { id: 'cluster', label: 'Cell cluster', simple: 'Cells packed more tightly than a tidy sheet.', standard: 'Irregular culture cluster.', technical: 'Contact-rich cluster with variable size.', x: 48, y: 50, minMag: 100 },
+        { id: 'membrane', label: 'Plasma membrane', simple: 'Outer boundary of a cultured cell.', standard: 'Cell membrane outline.', technical: 'Plasma membrane of adherent culture cell.', x: 34, y: 40, minMag: 400 },
+        { id: 'nucleus', label: 'Nucleus', simple: 'Large nucleus — common teaching cue in tumour cell lines.', standard: 'Often prominent nucleus.', technical: 'Educational nuclear prominence — not a diagnostic grade.', x: 50, y: 46, minMag: 400 },
+        { id: 'nucleolus', label: 'Nucleolus', simple: 'Dense spot inside the nucleus.', standard: 'Nucleolus.', technical: 'Nucleolar detail at oil-immersion teaching tier.', x: 52, y: 44, minMag: 1000 },
+        { id: 'cytoplasm', label: 'Cytoplasm', simple: 'Working contents of the cell.', standard: 'Cytoplasm.', technical: 'Cytoplasmic texture in generated diagram.', x: 58, y: 58, minMag: 1000 },
       ];
     case 'epithelial':
     default:
@@ -179,6 +204,18 @@ function buildEduPanel(kind: SpecimenKind, mag: MicroscopeMagnification, label: 
       400: ['Budding pairs', 'Nuclei'],
       1000: ['Vacuole', 'Bud scar cue', 'Cytoplasmic texture'],
     },
+    'tumour-culture': {
+      40: ['Culture overview (generated diagram)', 'Crowded cell field'],
+      100: ['Irregular clusters', 'Variable cell size cues'],
+      400: ['Individual cultured cells', 'Prominent nuclei'],
+      1000: ['Nucleolus', 'Membrane outline', 'Cytoplasmic texture'],
+    },
+    'tumour-blood': {
+      40: ['Smear overview (generated diagram)'],
+      100: ['RBC background', 'Scattered larger nucleated cells'],
+      400: ['Atypical / blast-like cells', 'RBC central pallor'],
+      1000: ['Nuclear detail cue (educational)', 'High N:C ratio teaching cue'],
+    },
   };
 
   const magChangeMap: Record<MicroscopeMagnification, string> = {
@@ -195,6 +232,8 @@ function buildEduPanel(kind: SpecimenKind, mag: MicroscopeMagnification, label: 
     bacteria: 'Prokaryotes are micrometre-scale — they look like dots or rods until high power.',
     tissue: 'Sections preserve architecture: plates of cells with spaces (e.g. sinusoids) between them.',
     fungi: 'Yeasts are oval eukaryotes; budding and vacuoles are classic light-microscope cues.',
+    'tumour-culture': 'Tumour-derived cell lines are shown as generated culture diagrams — not patient histology photographs.',
+    'tumour-blood': 'Blood/lymphoid neoplasms are taught with a generated smear diagram; they typically do not form a solid tumour mass.',
   };
 
   return {
@@ -380,16 +419,58 @@ export function VirtualMicroscopePage() {
             <strong>{specimen.label}</strong>
             <span className="specimen-kind-chip">{kindTitle(kind)}</span>
             <EvidenceBadge level={specimen.morphologySupported ? 'model-derived' : 'reference-data'} />
+            {(specimen.isGeneratedDiagram || kind === 'tumour-culture' || kind === 'tumour-blood') && (
+              <span className="generated-diagram-badge" role="status">Generated diagram — not real histology</span>
+            )}
             {specimen.simulatedViability !== undefined && (
               <span className="text-muted">Modelled viability: {specimen.simulatedViability.toFixed(1)}%</span>
             )}
+            {specimen.notes && <p className="text-muted specimen-notes">{specimen.notes}</p>}
           </div>
         )}
         {showLoadPanel && (
           <div className="specimen-load-panel">
-            <h4>Reference specimens</h4>
+            <h4>Tumour / cancer specimens</h4>
             <div className="specimen-grid">
-              {organismIndex.query({ compatibleModule: 'microscope', pageSize: 12 }).items.filter((e) => e.morphologySupported).map((e) => (
+              {organismIndex
+                .query({ category: 'tumours-cancer', compatibleModule: 'microscope', pageSize: 200, sortBy: 'name' })
+                .items
+                .filter((e) => e.morphologySupported)
+                .sort((a, b) => {
+                  const rank = (e: typeof a) => {
+                    if (e.entryKind === 'tumour-cell-line') return 0;
+                    if (e.entryKind === 'educational-specimen') return 1;
+                    return 2;
+                  };
+                  const d = rank(a) - rank(b);
+                  return d !== 0 ? d : a.name.localeCompare(b.name);
+                })
+                .slice(0, 16)
+                .map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    className="specimen-btn"
+                    onClick={() => loadSpecimen({
+                      id: generateId('MS'),
+                      label: e.name,
+                      sourceType: 'reference',
+                      sourceId: e.id,
+                      organismCategory: e.category,
+                      morphologySupported: e.morphologySupported,
+                      isGeneratedDiagram: true,
+                      notes: 'Generated educational diagram — not real histology.',
+                    })}
+                  >
+                    {e.name}
+                  </button>
+                ))}
+            </div>
+            <h4>Other reference specimens</h4>
+            <div className="specimen-grid">
+              {organismIndex.query({ compatibleModule: 'microscope', pageSize: 12 }).items
+                .filter((e) => e.morphologySupported && e.category !== 'tumours-cancer')
+                .map((e) => (
                 <button
                   key={e.id}
                   type="button"
@@ -412,13 +493,17 @@ export function VirtualMicroscopePage() {
               <p className="text-muted">No saved samples.</p>
             ) : (
               <div className="specimen-grid">
-                {state.samples.slice(0, 6).map((s) => (
+                {state.samples.slice(0, 8).map((s) => (
                   <button key={s.id} type="button" className="specimen-btn" onClick={() => loadSpecimen({
                     id: generateId('MS'),
                     label: s.name,
                     sourceType: 'sample',
                     sourceId: s.id,
                     morphologySupported: true,
+                    isGeneratedDiagram: /tumour|tumor|hela|leukem|leukaem|cell line|mcf|jurkat|k-562|a549/i.test(s.name),
+                    notes: /tumour|tumor|hela|leukem|leukaem|cell line|mcf|jurkat|k-562|a549/i.test(s.name)
+                      ? 'Generated educational diagram — not real histology.'
+                      : undefined,
                   })}>
                     {s.name}
                   </button>
@@ -626,7 +711,7 @@ export function VirtualMicroscopePage() {
               <ExplainLabel label="Contrast" content={EXPLAIN.contrast} />
               <ExplainLabel label="Illumination" content={EXPLAIN.illumination} />
               <ExplainLabel label="Resolution" content={EXPLAIN.resolution} />
-              {(kind === 'epithelial' || kind === 'tissue' || kind === 'blood' || kind === 'plant' || kind === 'fungi') && (
+              {(kind === 'epithelial' || kind === 'tissue' || kind === 'blood' || kind === 'plant' || kind === 'fungi' || kind === 'tumour-culture' || kind === 'tumour-blood') && (
                 <>
                   <ExplainLabel label="Cell" content={EXPLAIN.cell} />
                   <ExplainLabel label="Nucleus" content={EXPLAIN.nucleus} />
@@ -808,6 +893,8 @@ function SpecimenStage({ kind, mag, uid }: { kind: SpecimenKind; mag: Microscope
       {kind === 'bacteria' && <BacteriaScene mag={mag} softFilterId={softId} />}
       {kind === 'tissue' && <TissueScene mag={mag} />}
       {kind === 'fungi' && <FungiScene mag={mag} />}
+      {kind === 'tumour-culture' && <EpithelialScene mag={mag} />}
+      {kind === 'tumour-blood' && <BloodScene mag={mag} />}
     </svg>
   );
 }

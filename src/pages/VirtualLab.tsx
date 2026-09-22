@@ -30,7 +30,7 @@ import {
   inferMoleculeRole,
   createDefaultControl,
 } from '../services/experimentWorkspaceService';
-import { getSimulationProfile } from '../services/organismSimulationProfile';
+import { getSimulationProfile, assertSimulationAllowed } from '../services/organismSimulationProfile';
 import { buildScientificReport } from '../services/reportGenerator';
 import {
   createSimulation,
@@ -127,6 +127,11 @@ export function VirtualLabPage() {
   );
 
   const initFromCatalogue = useCallback((entry: OrganismCatalogueEntry) => {
+    const allowed = assertSimulationAllowed(entry.id);
+    if (!allowed.ok) {
+      setActionFeedback(allowed.reason);
+      return;
+    }
     const experimentSetup = createExperimentSetup(entry);
     const modelEnv = environmentFromSetup(experimentSetup);
     dispatch({ type: 'SET_EXPERIMENT_SETUP', payload: experimentSetup });
@@ -143,6 +148,8 @@ export function VirtualLabPage() {
 
   useEffect(() => {
     if (!catalogueEntry) return;
+    const allowed = assertSimulationAllowed(catalogueEntry.id);
+    if (!allowed.ok) return;
     if (!setup) {
       initFromCatalogue(catalogueEntry);
       return;
@@ -173,6 +180,12 @@ export function VirtualLabPage() {
     if (handoff.entityId.startsWith('ORG-')) {
       const entry = organismIndex.getById(handoff.entityId);
       if (entry) {
+        const allowed = assertSimulationAllowed(entry.id);
+        if (!allowed.ok) {
+          setActionFeedback(allowed.reason);
+          dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
+          return;
+        }
         setSelectedCatalogueId(entry.id);
         initFromCatalogue(entry);
       }
