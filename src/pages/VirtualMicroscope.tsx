@@ -433,8 +433,19 @@ export function VirtualMicroscopePage() {
             <h4>Tumour / cancer specimens</h4>
             <div className="specimen-grid">
               {organismIndex
-                .query({ category: 'tumours-cancer', compatibleModule: 'microscope', pageSize: 16 })
-                .items.filter((e) => e.morphologySupported)
+                .query({ category: 'tumours-cancer', compatibleModule: 'microscope', pageSize: 200, sortBy: 'name' })
+                .items
+                .filter((e) => e.morphologySupported)
+                .sort((a, b) => {
+                  const rank = (e: typeof a) => {
+                    if (e.entryKind === 'tumour-cell-line') return 0;
+                    if (e.entryKind === 'educational-specimen') return 1;
+                    return 2;
+                  };
+                  const d = rank(a) - rank(b);
+                  return d !== 0 ? d : a.name.localeCompare(b.name);
+                })
+                .slice(0, 16)
                 .map((e) => (
                   <button
                     key={e.id}
