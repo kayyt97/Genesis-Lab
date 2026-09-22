@@ -99,12 +99,22 @@ function renderMorphology(
     );
   }
 
-  if (type === 'hela' || type === 'adherent-cell') {
+  if (type === 'hela' || type === 'adherent-cell' || type === 'tumour-cell-line') {
     return (
       <svg viewBox="0 0 120 80" className="morph-svg" aria-hidden>
         <ellipse cx="45" cy="42" rx="16" ry="10" fill={color} opacity={opacity} transform={`scale(${scale})`} style={{ transformOrigin: '45px 42px' }} />
         <ellipse cx="78" cy="36" rx="14" ry="9" fill={color} opacity={opacity * 0.85} />
         <ellipse cx="62" cy="52" rx="12" ry="8" fill={color} opacity={opacity * 0.7} />
+      </svg>
+    );
+  }
+
+  if (type === 'suspension-lymphoid') {
+    return (
+      <svg viewBox="0 0 120 80" className="morph-svg" aria-hidden>
+        {[[38, 36], [58, 30], [72, 44], [48, 52], [64, 56]].map(([x, y], i) => (
+          <circle key={i} cx={x} cy={y} r={i === 0 ? 9 : 7} fill={color} opacity={opacity * (0.95 - i * 0.08)} />
+        ))}
       </svg>
     );
   }

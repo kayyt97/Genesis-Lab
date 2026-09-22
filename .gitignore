@@ -33,3 +33,5 @@ backend/node_modules/
 *.njsproj
 *.sln
 *.sw?
+tmp/
+data/tumour-sources/

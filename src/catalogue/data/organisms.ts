@@ -1,5 +1,15 @@
 import type { OrganismCatalogueEntry } from '../types';
 import type { TieredText } from '../../types/language';
+import { ALL_TUMOUR_CATALOGUE_ENTRIES } from './tumours/index';
+
+function dedupeById(items: OrganismCatalogueEntry[]): OrganismCatalogueEntry[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
 
 function tier(s: string, std?: string, tech?: string): TieredText {
   return { simple: s, standard: std ?? s, technical: tech ?? std ?? s };
@@ -13,33 +23,39 @@ function org(
     relatedIds?: string[];
     compatibleModules?: OrganismCatalogueEntry['compatibleModules'];
     summary?: TieredText;
+    simulationReady?: boolean;
   },
 ): OrganismCatalogueEntry {
+  const compatible = partial.compatibleModules ?? ['virtual-lab', 'microscope', 'notebook'];
   return {
     aliases: [],
     tags: [],
     keywords: [],
     relatedIds: [],
-    compatibleModules: ['virtual-lab', 'microscope', 'notebook'],
+    compatibleModules: compatible,
     evidence: { level: 'reference-data' },
     summary: partial.description,
+    simulationReady: partial.simulationReady ?? compatible.includes('virtual-lab'),
     ...partial,
   };
 }
 
-/** Curated seed entries with accurate educational metadata */
+/** Curated seed entries with accurate educational metadata.
+ *  HeLa lives in the tumour cell-line catalogue (ORG-HELA) so it is labelled as a
+ *  cervical cancer-derived cell line, not a generic cervical tumour specimen.
+ */
 const SEEDS: OrganismCatalogueEntry[] = [
-  org({ id: 'ORG-ECOLI', name: 'E. coli', scientificName: 'Escherichia coli', category: 'bacteria', subcategory: 'gram-negative', taxonomy: 'Bacteria; Gammaproteobacteria', morphology: 'Rod-shaped bacillus, ~2 µm', description: tier('Common lab bacterium for studying growth.', 'Facultative anaerobic Gram-negative model bacterium.', 'Mesophilic enterobacterium; molecular biology model.'), cellularOrganisation: 'Prokaryotic', characteristics: ['Gram-negative', 'Facultative anaerobe'], preferredEnvironment: { temperature: 37, ph: 7, oxygen: 21 }, morphologySupported: true, relatedGenes: ['GEN-TP53'], tags: ['lab-organism', 'bacillus'], keywords: ['escherichia', 'coli', 'bacteria'] }),
-  org({ id: 'ORG-BSUB', name: 'B. subtilis', scientificName: 'Bacillus subtilis', category: 'bacteria', subcategory: 'gram-positive', taxonomy: 'Bacteria; Bacillales', morphology: 'Rod-shaped, endospore-forming', description: tier('Soil bacterium forming tough spores.', 'Gram-positive spore-forming bacterium.', 'Endospore-forming firmicute model.'), cellularOrganisation: 'Prokaryotic', characteristics: ['Gram-positive', 'Spore-forming'], morphologySupported: true, tags: ['bacillus', 'spore'], keywords: ['subtilis'] }),
-  org({ id: 'ORG-SAUREUS', name: 'S. aureus (reference)', scientificName: 'Staphylococcus aureus', category: 'bacteria', subcategory: 'cocci', taxonomy: 'Bacteria; Bacillales', morphology: 'Cocci in clusters', description: tier('Round bacterium; educational reference only.', 'Gram-positive coccus; pathogenic strains exist.', 'Facultative anaerobe; biofilm-capable reference.'), cellularOrganisation: 'Prokaryotic', characteristics: ['Gram-positive', 'Coccus'], morphologySupported: true, pathogenInfo: 'educational-reference-only', safetyClass: 'reference-pathogen', tags: ['cocci', 'medical-reference'], keywords: ['staphylococcus', 'aureus'] }),
-  org({ id: 'ORG-HELA', name: 'HeLa cells', scientificName: 'Homo sapiens (HeLa)', category: 'mammalian-cells', subcategory: 'epithelial', taxonomy: 'Eukaryota; Mammalia', morphology: 'Epithelial adherent cells', description: tier('Human cells grown in culture dishes.', 'Immortalised cervical epithelial cell line.', 'Adherent diploid-derived biomedical model.'), cellularOrganisation: 'Eukaryotic with nucleus', characteristics: ['Adherent', 'Human', 'Immortalised'], preferredEnvironment: { temperature: 37, ph: 7.4, oxygen: 21 }, morphologySupported: true, tags: ['cell-line', 'epithelial'], keywords: ['hela', 'cervical'] }),
-  org({ id: 'ORG-NEURON', name: 'Neuron (reference)', scientificName: 'Neuron (generic)', category: 'mammalian-cells', subcategory: 'neuron', taxonomy: 'Nervous tissue', morphology: 'Cell body with axon and dendrites', description: tier('Nerve cell that sends signals.', 'Electrically excitable nervous system cell.', 'Polarised cell with synaptic connectivity.'), cellularOrganisation: 'Eukaryotic', characteristics: ['Excitable'], morphologySupported: true, relatedGenes: ['GEN-HTT', 'GEN-APP'], tags: ['neuron', 'nervous'], keywords: ['neuron', 'nerve'] }),
-  org({ id: 'ORG-ONION', name: 'Onion epidermis', scientificName: 'Allium cepa (epidermis)', category: 'plant-cells', subcategory: 'epidermis', taxonomy: 'Plantae; Liliaceae', morphology: 'Large rectangular cells with cell walls', description: tier('Plant cells from onion skin — classic microscopy specimen.', 'Plant epidermal cells for teaching.', 'Large vacuolated plant cells with cellulose walls.'), cellularOrganisation: 'Eukaryotic plant cell', characteristics: ['Cell wall visible'], morphologySupported: true, tags: ['plant', 'microscopy'], keywords: ['onion', 'allium'] }),
-  org({ id: 'ORG-YEAST', name: "Baker's yeast", scientificName: 'Saccharomyces cerevisiae', category: 'fungi', subcategory: 'yeast', taxonomy: 'Fungi; Saccharomycetes', morphology: 'Oval budding cells', description: tier('Single-celled fungus used in baking and research.', 'Unicellular eukaryotic model fungus.', 'Budding yeast; cell cycle model.'), cellularOrganisation: 'Eukaryotic', characteristics: ['Unicellular', 'Budding'], morphologySupported: true, tags: ['yeast', 'fungi'], keywords: ['saccharomyces'] }),
-  org({ id: 'ORG-PHAGE-T4', name: 'Bacteriophage T4', scientificName: 'Enterobacteria phage T4', category: 'viruses', subcategory: 'bacteriophage', taxonomy: 'Virus; Straboviridae', morphology: 'Icosahedral head with tail fibres', description: tier('Virus that infects bacteria.', 'Model bacteriophage for viral replication.', 'Double-stranded DNA phage; lytic cycle model.'), cellularOrganisation: 'Acellular', characteristics: ['DNA virus', 'Lytic'], morphologySupported: false, tags: ['phage', 'dna-virus'], keywords: ['t4', 'bacteriophage'] }),
-  org({ id: 'ORG-LIVER', name: 'Liver tissue', scientificName: 'Hepatic tissue (reference)', category: 'tissues', subcategory: 'liver', taxonomy: 'Mammalian hepatic', morphology: 'Hexagonal lobules', description: tier('Liver tissue for learning histology.', 'Hepatic lobule architecture.', 'Hepatocyte plates with sinusoids.'), cellularOrganisation: 'Multicellular tissue', characteristics: ['Lobular'], morphologySupported: true, tags: ['histology', 'liver'], keywords: ['liver', 'hepatic'] }),
-  org({ id: 'ORG-ARCH-METH', name: 'Methanogen (reference)', scientificName: 'Methanobrevibacter (reference)', category: 'archaea', subcategory: 'methanogen', taxonomy: 'Archaea; Euryarchaeota', morphology: 'Rod-shaped anaerobe', description: tier('Archaea that produce methane in anaerobic environments.', 'Methanogenic archaeon reference.', 'Anaerobic archaeal metabolism model.'), cellularOrganisation: 'Prokaryotic (archaeal)', characteristics: ['Anaerobic', 'Methanogenic'], morphologySupported: false, tags: ['archaea', 'methanogen'], keywords: ['methanogen', 'archaea'] }),
+  org({ id: 'ORG-ECOLI', name: 'E. coli', scientificName: 'Escherichia coli', category: 'bacteria', subcategory: 'gram-negative', taxonomy: 'Bacteria; Gammaproteobacteria', morphology: 'Rod-shaped bacillus, ~2 µm', description: tier('Common lab bacterium for studying growth.', 'Facultative anaerobic Gram-negative model bacterium.', 'Mesophilic enterobacterium; molecular biology model.'), cellularOrganisation: 'Prokaryotic', characteristics: ['Gram-negative', 'Facultative anaerobe'], preferredEnvironment: { temperature: 37, ph: 7, oxygen: 21 }, morphologySupported: true, relatedGenes: ['GEN-TP53'], tags: ['lab-organism', 'bacillus'], keywords: ['escherichia', 'coli', 'bacteria'], simulationReady: true }),
+  org({ id: 'ORG-BSUB', name: 'B. subtilis', scientificName: 'Bacillus subtilis', category: 'bacteria', subcategory: 'gram-positive', taxonomy: 'Bacteria; Bacillales', morphology: 'Rod-shaped, endospore-forming', description: tier('Soil bacterium forming tough spores.', 'Gram-positive spore-forming bacterium.', 'Endospore-forming firmicute model.'), cellularOrganisation: 'Prokaryotic', characteristics: ['Gram-positive', 'Spore-forming'], morphologySupported: true, tags: ['bacillus', 'spore'], keywords: ['subtilis'], simulationReady: true }),
+  org({ id: 'ORG-SAUREUS', name: 'S. aureus (reference)', scientificName: 'Staphylococcus aureus', category: 'bacteria', subcategory: 'cocci', taxonomy: 'Bacteria; Bacillales', morphology: 'Cocci in clusters', description: tier('Round bacterium; educational reference only.', 'Gram-positive coccus; pathogenic strains exist.', 'Facultative anaerobe; biofilm-capable reference.'), cellularOrganisation: 'Prokaryotic', characteristics: ['Gram-positive', 'Coccus'], morphologySupported: true, pathogenInfo: 'educational-reference-only', safetyClass: 'reference-pathogen', tags: ['cocci', 'medical-reference'], keywords: ['staphylococcus', 'aureus'], simulationReady: true }),
+  org({ id: 'ORG-NEURON', name: 'Neuron (reference)', scientificName: 'Neuron (generic)', category: 'mammalian-cells', subcategory: 'neuron', taxonomy: 'Nervous tissue', morphology: 'Cell body with axon and dendrites', description: tier('Nerve cell that sends signals.', 'Electrically excitable nervous system cell.', 'Polarised cell with synaptic connectivity.'), cellularOrganisation: 'Eukaryotic', characteristics: ['Excitable'], morphologySupported: true, relatedGenes: ['GEN-HTT', 'GEN-APP'], tags: ['neuron', 'nervous'], keywords: ['neuron', 'nerve'], simulationReady: true }),
+  org({ id: 'ORG-ONION', name: 'Onion epidermis', scientificName: 'Allium cepa (epidermis)', category: 'plant-cells', subcategory: 'epidermis', taxonomy: 'Plantae; Liliaceae', morphology: 'Large rectangular cells with cell walls', description: tier('Plant cells from onion skin — classic microscopy specimen.', 'Plant epidermal cells for teaching.', 'Large vacuolated plant cells with cellulose walls.'), cellularOrganisation: 'Eukaryotic plant cell', characteristics: ['Cell wall visible'], morphologySupported: true, tags: ['plant', 'microscopy'], keywords: ['onion', 'allium'], simulationReady: true }),
+  org({ id: 'ORG-YEAST', name: "Baker's yeast", scientificName: 'Saccharomyces cerevisiae', category: 'fungi', subcategory: 'yeast', taxonomy: 'Fungi; Saccharomycetes', morphology: 'Oval budding cells', description: tier('Single-celled fungus used in baking and research.', 'Unicellular eukaryotic model fungus.', 'Budding yeast; cell cycle model.'), cellularOrganisation: 'Eukaryotic', characteristics: ['Unicellular', 'Budding'], morphologySupported: true, tags: ['yeast', 'fungi'], keywords: ['saccharomyces'], simulationReady: true }),
+  org({ id: 'ORG-PHAGE-T4', name: 'Bacteriophage T4', scientificName: 'Enterobacteria phage T4', category: 'viruses', subcategory: 'bacteriophage', taxonomy: 'Virus; Straboviridae', morphology: 'Icosahedral head with tail fibres', description: tier('Virus that infects bacteria.', 'Model bacteriophage for viral replication.', 'Double-stranded DNA phage; lytic cycle model.'), cellularOrganisation: 'Acellular', characteristics: ['DNA virus', 'Lytic'], morphologySupported: false, tags: ['phage', 'dna-virus'], keywords: ['t4', 'bacteriophage'], compatibleModules: ['pathway-explorer', 'notebook', 'project'], simulationReady: false }),
+  org({ id: 'ORG-LIVER', name: 'Liver tissue', scientificName: 'Hepatic tissue (reference)', category: 'tissues', subcategory: 'liver', taxonomy: 'Mammalian hepatic', morphology: 'Hexagonal lobules', description: tier('Liver tissue for learning histology.', 'Hepatic lobule architecture.', 'Hepatocyte plates with sinusoids.'), cellularOrganisation: 'Multicellular tissue', characteristics: ['Lobular'], morphologySupported: true, tags: ['histology', 'liver'], keywords: ['liver', 'hepatic'], simulationReady: true }),
+  org({ id: 'ORG-ARCH-METH', name: 'Methanogen (reference)', scientificName: 'Methanobrevibacter (reference)', category: 'archaea', subcategory: 'methanogen', taxonomy: 'Archaea; Euryarchaeota', morphology: 'Rod-shaped anaerobe', description: tier('Archaea that produce methane in anaerobic environments.', 'Methanogenic archaeon reference.', 'Anaerobic archaeal metabolism model.'), cellularOrganisation: 'Prokaryotic (archaeal)', characteristics: ['Anaerobic', 'Methanogenic'], morphologySupported: false, tags: ['archaea', 'methanogen'], keywords: ['methanogen', 'archaea'], simulationReady: false }),
 ];
+
 
 /** Programmatic expansion templates for scale */
 const BACTERIAL_TEMPLATES = [
@@ -234,10 +250,21 @@ function generateOrganisms(): OrganismCatalogueEntry[] {
   return generated;
 }
 
-export const ORGANISM_CATALOGUE: OrganismCatalogueEntry[] = generateOrganisms();
+/** Non-tumour catalogue (programmatic seeds + expansions) */
+const BASE_ORGANISM_CATALOGUE: OrganismCatalogueEntry[] = generateOrganisms();
+
+/**
+ * Full organism catalogue including Tumours & Cancer.
+ * Tumour cell lines are merged first so curated IDs (e.g. ORG-HELA) win on dedupe.
+ */
+export const ORGANISM_CATALOGUE: OrganismCatalogueEntry[] = dedupeById([
+  ...ALL_TUMOUR_CATALOGUE_ENTRIES,
+  ...BASE_ORGANISM_CATALOGUE,
+]);
 
 export const ORGANISM_CATEGORIES = [
   { value: 'all', label: 'All' },
+  { value: 'tumours-cancer', label: 'Tumours & Cancer' },
   { value: 'bacteria', label: 'Bacteria' },
   { value: 'archaea', label: 'Archaea' },
   { value: 'fungi', label: 'Fungi' },

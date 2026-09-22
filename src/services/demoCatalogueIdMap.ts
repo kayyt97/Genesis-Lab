@@ -1,4 +1,5 @@
 import { organismIndex } from '../catalogue/index';
+import { SIMULATION_READY_TUMOUR_CELL_LINE_IDS } from '../catalogue/data/tumours/index';
 
 /**
  * Legacy Experiment Builder / demo seed organism IDs → catalogue organism IDs.
@@ -20,11 +21,18 @@ export const DEMO_SAMPLE_TO_CATALOGUE_ORGANISM: Readonly<Record<string, string>>
   'SMP-002': 'ORG-HELA',
   'SMP-003': 'ORG-ECOLI',
   'SMP-004': 'ORG-PRO-GFP',
+  'SMP-005': 'ORG-CL-MCF7',
+  'SMP-006': 'ORG-CL-JURKAT',
+  'SMP-007': 'ORG-CL-K562',
+  'SMP-008': 'ORG-CL-A549',
 };
 
 /** Curated catalogue IDs offered in Experiment Builder / Organisms simulation list. */
 export const BUILDER_ORGANISM_CATALOGUE_IDS: readonly string[] = [
-  ...new Set(Object.values(DEMO_ORGANISM_TO_CATALOGUE)),
+  ...new Set([
+    ...Object.values(DEMO_ORGANISM_TO_CATALOGUE),
+    ...SIMULATION_READY_TUMOUR_CELL_LINE_IDS,
+  ]),
 ];
 
 export function isLegacyDemoOrganismId(id: string | undefined | null): boolean {
@@ -50,8 +58,16 @@ export function getCatalogueOrganismLabel(id: string | undefined | null): string
   return organismIndex.getById(catalogueId)?.name;
 }
 
+export function isSimulationReadyOrganism(id: string | undefined | null): boolean {
+  const catalogueId = resolveCatalogueOrganismId(id);
+  if (!catalogueId) return false;
+  const entry = organismIndex.getById(catalogueId);
+  if (!entry) return false;
+  return entry.simulationReady ?? entry.compatibleModules.includes('virtual-lab');
+}
+
 export function getBuilderOrganismOptions() {
-  return BUILDER_ORGANISM_CATALOGUE_IDS.map((id) => organismIndex.getById(id)).filter(
-    (e): e is NonNullable<typeof e> => Boolean(e),
-  );
+  return BUILDER_ORGANISM_CATALOGUE_IDS.map((id) => organismIndex.getById(id))
+    .filter((e): e is NonNullable<typeof e> => Boolean(e))
+    .filter((e) => e.simulationReady ?? e.compatibleModules.includes('virtual-lab'));
 }

@@ -11,7 +11,24 @@ export type EntityActionContext = {
   navigate: (path: string) => void;
 };
 
+export function sendOrganismToVirtualLab(ctx: EntityActionContext, entry: OrganismCatalogueEntry) {
+  const simReady = entry.simulationReady ?? entry.compatibleModules.includes('virtual-lab');
+  if (!simReady) {
+    // Do not hand off reference-only tumour taxonomy into the E. coli-capable lab path.
+    ctx.navigate('/organisms');
+    return;
+  }
+  sendToVirtualLab(ctx.dispatch, entry.id, entry.name, 'pathway-node');
+  ctx.navigate('/virtual-lab');
+}
+
 export function organismToMicroscopeSpecimen(entry: OrganismCatalogueEntry): MicroscopeSpecimen {
+  const generated = entry.generatedDiagram !== false && (
+    entry.category === 'tumours-cancer'
+    || entry.entryKind === 'educational-specimen'
+    || entry.entryKind === 'tumour-cell-line'
+    || entry.entryKind === 'neoplasm-taxonomy'
+  );
   return {
     id: generateId('MS'),
     label: entry.name,
@@ -19,13 +36,11 @@ export function organismToMicroscopeSpecimen(entry: OrganismCatalogueEntry): Mic
     sourceId: entry.id,
     organismCategory: entry.category,
     morphologySupported: entry.morphologySupported,
-    notes: entry.summary.simple,
+    notes: generated
+      ? `${entry.summary.simple} Generated educational diagram — not real histology.`
+      : entry.summary.simple,
+    isGeneratedDiagram: generated || undefined,
   };
-}
-
-export function sendOrganismToVirtualLab(ctx: EntityActionContext, entry: OrganismCatalogueEntry) {
-  sendToVirtualLab(ctx.dispatch, entry.id, entry.name, 'pathway-node');
-  ctx.navigate('/virtual-lab');
 }
 
 export function sendOrganismToMicroscope(ctx: EntityActionContext, entry: OrganismCatalogueEntry) {

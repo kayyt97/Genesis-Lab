@@ -24,15 +24,50 @@ const CATEGORY_PROFILES: Record<string, OrganismSimulationProfile> = {
   tissues: { category: 'tissues', optimalTemp: 37, optimalPh: 7.4, basePopulation: 300_000, baseViability: 85, replicationRate: 0.08, environmentalTolerance: 55, morphologyType: 'tissue' },
   proteins: { category: 'proteins', optimalTemp: 25, optimalPh: 7, basePopulation: 1, baseViability: 100, replicationRate: 0, environmentalTolerance: 70, morphologyType: 'protein' },
   prions: { category: 'prions', optimalTemp: 37, optimalPh: 7, basePopulation: 1000, baseViability: 30, replicationRate: 0.05, environmentalTolerance: 95, morphologyType: 'prion' },
+  /** Culture model for tumour-derived cell lines only — never for neoplasm taxonomy */
+  'tumours-cancer': { category: 'tumours-cancer', optimalTemp: 37, optimalPh: 7.4, basePopulation: 500_000, baseViability: 90, replicationRate: 0.15, environmentalTolerance: 60, morphologyType: 'tumour-cell-line' },
 };
 
 export function getCatalogueEntry(organismId: string): OrganismCatalogueEntry | undefined {
   return organismIndex.getById(organismId);
 }
 
+/**
+ * Returns a simulation profile only for entries that are simulation-ready.
+ * Tumour taxonomy (disease) entries must not silently inherit the E. coli bacterial model.
+ */
 export function getSimulationProfile(organismId: string): OrganismSimulationProfile {
   const entry = getCatalogueEntry(organismId);
   if (entry) {
+    const simReady = entry.simulationReady ?? entry.compatibleModules.includes('virtual-lab');
+
+    if (entry.category === 'tumours-cancer') {
+      if (!simReady || entry.entryKind === 'neoplasm-taxonomy' || entry.entryKind === 'educational-specimen') {
+        // Explicit non-bacterial stub — callers should not run disease taxonomy in Virtual Lab.
+        return {
+          category: 'tumours-cancer',
+          optimalTemp: 37,
+          optimalPh: 7.4,
+          basePopulation: 0,
+          baseViability: 0,
+          replicationRate: 0,
+          environmentalTolerance: 0,
+          morphologyType: 'reference-only',
+        };
+      }
+      const base = CATEGORY_PROFILES['tumours-cancer'];
+      if (
+        entry.tissueForm === 'blood-lymphoid'
+        || (entry.subcategory === 'tumour-cell-line' && /jurkat|k-562|k562|leukemia|leukaemia/i.test(entry.name))
+      ) {
+        return { ...base, morphologyType: 'suspension-lymphoid', replicationRate: 0.18 };
+      }
+      if (entry.id === 'ORG-HELA') {
+        return { ...base, morphologyType: 'hela' };
+      }
+      return { ...base, morphologyType: 'tumour-cell-line' };
+    }
+
     const base = CATEGORY_PROFILES[entry.category] ?? CATEGORY_PROFILES.bacteria;
     if (entry.subcategory === 'neuron') {
       return { ...base, morphologyType: 'neuron', replicationRate: 0.05 };
@@ -46,9 +81,6 @@ export function getSimulationProfile(organismId: string): OrganismSimulationProf
     if (entry.id === 'ORG-ECOLI' || entry.name.includes('E. coli')) {
       return { ...CATEGORY_PROFILES.bacteria, replicationRate: 0.6 };
     }
-    if (entry.id === 'ORG-HELA') {
-      return { ...CATEGORY_PROFILES['mammalian-cells'], morphologyType: 'hela' };
-    }
     return base;
   }
   return legacyProfile(organismId);
@@ -58,7 +90,7 @@ function legacyProfile(organismId: string): OrganismSimulationProfile {
   switch (organismId) {
     case 'ORG-002': return CATEGORY_PROFILES.viruses;
     case 'ORG-003': return CATEGORY_PROFILES.fungi;
-    case 'ORG-004': return { ...CATEGORY_PROFILES['mammalian-cells'], morphologyType: 'hela' };
+    case 'ORG-004': return { ...CATEGORY_PROFILES['tumours-cancer'], morphologyType: 'hela' };
     case 'ORG-005': return CATEGORY_PROFILES.proteins;
     case 'ORG-006': return CATEGORY_PROFILES.prions;
     default: return CATEGORY_PROFILES.bacteria;
@@ -89,6 +121,20 @@ export function biologicalSystemTypeLabel(category: string): string {
     tissues: 'Tissue',
     proteins: 'Protein',
     prions: 'Prion (reference)',
+    'tumours-cancer': 'Tumour / cancer catalogue',
   };
   return labels[category] ?? 'Biological system';
+}
+
+export function assertSimulationAllowed(organismId: string): { ok: true } | { ok: false; reason: string } {
+  const entry = getCatalogueEntry(organismId);
+  if (!entry) return { ok: false, reason: 'Unknown catalogue organism.' };
+  const simReady = entry.simulationReady ?? entry.compatibleModules.includes('virtual-lab');
+  if (!simReady) {
+    return {
+      ok: false,
+      reason: 'Simulation not available for this catalogue entry. The E. coli growth model is never applied to tumour taxonomy entries.',
+    };
+  }
+  return { ok: true };
 }

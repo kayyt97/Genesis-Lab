@@ -20,10 +20,14 @@ interface EntityActionsProps {
 
 export function EntityActions({ ctx, organism, gene, molecule }: EntityActionsProps) {
   const actions: { label: string; onClick: () => void; variant?: 'primary' | 'secondary' | 'ghost' }[] = [];
+  const notices: string[] = [];
 
   if (organism) {
-    if (organism.compatibleModules.includes('virtual-lab')) {
+    const simReady = organism.simulationReady ?? organism.compatibleModules.includes('virtual-lab');
+    if (simReady && organism.compatibleModules.includes('virtual-lab')) {
       actions.push({ label: 'Send to Virtual Lab', onClick: () => sendOrganismToVirtualLab(ctx, organism), variant: 'secondary' });
+    } else if (organism.category === 'tumours-cancer' || organism.entryKind) {
+      notices.push('Simulation not available for this catalogue entry. Browse simulation-ready tumour cell lines (e.g. HeLa, MCF-7) instead.');
     }
     if (organism.morphologySupported && organism.compatibleModules.includes('microscope')) {
       actions.push({ label: 'View Under Microscope', onClick: () => sendOrganismToMicroscope(ctx, organism), variant: 'secondary' });
@@ -62,10 +66,13 @@ export function EntityActions({ ctx, organism, gene, molecule }: EntityActionsPr
     });
   }
 
-  if (actions.length === 0) return null;
+  if (actions.length === 0 && notices.length === 0) return null;
 
   return (
     <div className="entity-actions">
+      {notices.map((n) => (
+        <p key={n} className="warn-text sim-unavailable-note" role="status">{n}</p>
+      ))}
       {actions.map((a) => (
         <Button key={a.label} variant={a.variant ?? 'secondary'} onClick={a.onClick}>
           {a.label}

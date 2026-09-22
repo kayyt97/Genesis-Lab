@@ -251,6 +251,8 @@ export interface MicroscopeSpecimen {
   morphologySupported: boolean;
   simulatedViability?: number;
   notes?: string;
+  /** When true, UI must state this is a generated diagram rather than real histology */
+  isGeneratedDiagram?: boolean;
 }
 
 export interface LabWorkspaceState {
