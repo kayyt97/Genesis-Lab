@@ -283,6 +283,15 @@ export function percentDifference(experimental: number | null, control: number |
   return ((experimental - control) / control) * 100;
 }
 
+/** Format a percent delta without ever showing “−0.0”. */
+export function formatPercentDelta(pct: number | null): string {
+  if (pct === null || Number.isNaN(pct)) return 'not measured';
+  const rounded = Math.round(pct * 10) / 10;
+  if (rounded === 0 || Object.is(rounded, -0)) return '0.0%';
+  const sign = rounded > 0 ? '+' : '';
+  return `${sign}${rounded.toFixed(1)}%`;
+}
+
 export function formatMetricDisplay(reading: EducationalMetricReading): string {
   if (reading.status === 'not-measured' || reading.value === null) return 'not measured';
   return `${reading.value.toFixed(1)}${reading.unit} (${reading.disclaimer})`;
@@ -380,8 +389,8 @@ export function buildBeforeAfterResult(opts: {
       baseline: formatMetricDisplay(base),
       after: formatMetricDisplay(afterReading),
       control: ctrl ? formatMetricDisplay(ctrl) : 'not measured',
-      pctChangeFromBaseline: pctBase === null ? 'not measured' : `${pctBase >= 0 ? '+' : ''}${pctBase.toFixed(1)}%`,
-      pctDifferenceVsControl: pctCtrl === null ? 'not measured' : `${pctCtrl >= 0 ? '+' : ''}${pctCtrl.toFixed(1)}%`,
+      pctChangeFromBaseline: formatPercentDelta(pctBase),
+      pctDifferenceVsControl: formatPercentDelta(pctCtrl),
       calculation: calcParts.length ? calcParts.join(' · ') : 'not measured — insufficient values',
       note,
       disclaimer: SIMULATED_ESTIMATE_LABEL,
@@ -453,7 +462,7 @@ export function buildComparisonRows(
       metric: e.label,
       experimental: formatMetricDisplay(e),
       control: c ? formatMetricDisplay(c) : 'not measured',
-      percentDifference: pct === null ? 'not measured' : `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`,
+      percentDifference: formatPercentDelta(pct),
       note,
     };
   });

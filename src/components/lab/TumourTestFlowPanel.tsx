@@ -15,6 +15,8 @@ interface TumourTestFlowPanelProps {
   experimentalSim: Simulation | null;
   controlSim: Simulation | null;
   designs: TherapeuticDesign[];
+  comparisonAllowed?: boolean;
+  comparisonBlockReason?: string;
   onRecordBaseline: () => void;
   onApplyVector: (design: TherapeuticDesign) => void;
   onRunSteps: (n: number) => void;
@@ -35,6 +37,8 @@ export function TumourTestFlowPanel({
   experimentalSim,
   controlSim,
   designs,
+  comparisonAllowed = true,
+  comparisonBlockReason,
   onRecordBaseline,
   onApplyVector,
   onRunSteps,
@@ -52,7 +56,7 @@ export function TumourTestFlowPanel({
   const s3 = stepStatus(!!treatment, !!baseline && !treatment);
   const s4 = stepStatus(!!baseline && !!treatment && hasAfterTicks, !!baseline && !!treatment);
 
-  const result = baseline && experimentalSim
+  const result = baseline && experimentalSim && comparisonAllowed
     ? buildBeforeAfterResult({
       cellModelId: setup.catalogueEntryId,
       cellModelName: organismName,
@@ -142,6 +146,12 @@ export function TumourTestFlowPanel({
         <li className={`tumour-flow-step tumour-flow-${s4}`}>
           <span className="tumour-flow-step-label">4. Before / after vs untreated control</span>
           <p>Step the simulation, then read measured values, units, elapsed time, and calculation notes below.</p>
+          {!comparisonAllowed && (
+            <p className="warn-text" role="alert">
+              {comparisonBlockReason
+                ?? 'Experimental vs control comparison is blocked because dish conditions do not match. Align environments first.'}
+            </p>
+          )}
           <div className="tumour-flow-run-actions">
             <Button
               size="sm"
@@ -163,6 +173,14 @@ export function TumourTestFlowPanel({
           </div>
         </li>
       </ol>
+
+      {baseline && experimentalSim && !comparisonAllowed && (
+        <p className="warn-text" role="alert">
+          Before/after vs control table hidden until experimental and control environments match.
+          Baseline time recorded: {baseline.timeHours.toFixed(2)} simulated hours.
+          Current time: {experimentalSim.timeHours.toFixed(2)} simulated hours.
+        </p>
+      )}
 
       {result && (
         <div className="tumour-before-after" aria-label="Before and after results">

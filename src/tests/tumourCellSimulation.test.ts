@@ -6,6 +6,7 @@ import {
   attachTherapeuticToSetup,
   createExperimentSetup,
   environmentFromSetup,
+  environmentsMatchForComparison,
   recordDishBaseline,
 } from '../services/experimentWorkspaceService';
 import {
@@ -15,6 +16,7 @@ import {
   deriveTumourExperimentSeed,
   designEffectStrengths,
   formatMetricDisplay,
+  formatPercentDelta,
   initialTumourMetrics,
   isTumourCellModel,
   percentDifference,
@@ -331,6 +333,10 @@ describe('tumour-cell therapeutic simulation', () => {
     const seed = 4242;
     setup = { ...setup, simulationSeed: seed };
 
+    // Control must match experimental environment (no forced pH 7)
+    expect(setup.control.environment.ph).toBe(setup.environment.ph);
+    expect(setup.control.catalogueEntryId).toBe(entry.id);
+
     // 1) Untreated dish + matched control
     let experimental = createSimulation('ORG-HELA', environmentFromSetup(setup), undefined, { seed });
     let control = createSimulation('ORG-HELA', setup.control.environment, undefined, {
@@ -339,6 +345,7 @@ describe('tumour-cell therapeutic simulation', () => {
     });
     expect(experimental.therapeuticTreatment).toBeUndefined();
     expect(control.therapeuticTreatment).toBeUndefined();
+    expect(experimental.environment.ph).toBe(control.environment.ph);
 
     // Optional untreated drift before baseline
     experimental = runTicks(experimental, 4);
@@ -404,10 +411,35 @@ describe('tumour-cell therapeutic simulation', () => {
     expect(movement.control).toContain('simulated educational estimate');
     expect(movement.pctChangeFromBaseline).not.toBe('not measured');
     expect(movement.pctDifferenceVsControl).not.toBe('not measured');
+    expect(movement.pctDifferenceVsControl).not.toMatch(/−0\.0|-0\.0/);
     expect(movement.calculation).toContain('% change from baseline');
     expect(movement.calculation).toContain('% difference vs untreated control');
     expect(movement.note).toContain('viability is not evidence of reduced movement');
     expect(experimental.organismState.cellMovement!).toBeLessThan(baselineMovement);
     expect(experimental.organismState.cellMovement!).toBeLessThan(control.organismState.cellMovement!);
+  });
+
+  test('formatPercentDelta never shows −0.0', () => {
+    expect(formatPercentDelta(0)).toBe('0.0%');
+    expect(formatPercentDelta(-0)).toBe('0.0%');
+    expect(formatPercentDelta(-0.04)).toBe('0.0%');
+    expect(formatPercentDelta(0.04)).toBe('0.0%');
+    expect(formatPercentDelta(-0.15)).toBe('-0.1%');
+    expect(formatPercentDelta(1.24)).toBe('+1.2%');
+    expect(formatPercentDelta(null)).toBe('not measured');
+  });
+
+  test('matched control copies experimental environment (no forced pH 7)', () => {
+    const entry = organismIndex.getById('ORG-HELA')!;
+    const setup = createExperimentSetup(entry);
+    setup.environment.ph = 6.8;
+    // recreate control as the bug used to: forced ph 7
+    const bad = { ...setup.control.environment, ph: 7 };
+    expect(environmentsMatchForComparison(setup.environment, bad).ok).toBe(false);
+    expect(environmentsMatchForComparison(setup.environment, { ...setup.environment }).ok).toBe(true);
+    // Fresh setup from factory must already match
+    const fresh = createExperimentSetup(entry);
+    expect(fresh.control.environment.ph).toBe(fresh.environment.ph);
+    expect(environmentsMatchForComparison(fresh.environment, fresh.control.environment).ok).toBe(true);
   });
 });
