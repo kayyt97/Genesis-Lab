@@ -2677,3 +2677,23 @@ input[type="range"] {
   background: rgba(251, 191, 36, 0.08);
   font-size: 12px;
 }
+
+.saved-therapeutics-panel {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.saved-therapeutics-heading {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.saved-therapeutics-hint {
+  font-size: 12px;
+  margin: 0 0 10px;
+}
+
+.saved-therapeutics-list {
+  margin: 0;
+}
