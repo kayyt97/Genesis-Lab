@@ -4,8 +4,14 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { useAppState } from '../store/AppContext';
 import { LanguageControl } from '../components/ui/LanguageControl';
+import { THERAPEUTIC_DESIGNS_STORAGE_KEY } from '../services/therapeuticDesignPersistence';
 
-const STORAGE_KEYS = ['genesis-lab-state-v1', 'genesis-lab-state-v2', 'genesis-lab-state-v3'];
+const STORAGE_KEYS = [
+  'genesis-lab-state-v1',
+  'genesis-lab-state-v2',
+  'genesis-lab-state-v3',
+  THERAPEUTIC_DESIGNS_STORAGE_KEY,
+];
 
 export function SettingsPage() {
   const { state, dispatch } = useAppState();

@@ -32,6 +32,13 @@ import {
 } from '../data/demoData';
 import { simulationTick } from '../simulation/engine';
 import { sanitizePersistedWorkspace, sanitizePersistedSettings } from '../services/persistedStateMigration';
+import {
+  loadTherapeuticDesignsFromStorage,
+  mergeTherapeuticDesignLists,
+  persistTherapeuticDesigns,
+  sanitizeTherapeuticDesigns,
+  type PersistResult,
+} from '../services/therapeuticDesignPersistence';
 
 const STORAGE_KEY = 'genesis-lab-state-v3';
 
@@ -83,6 +90,7 @@ type AppAction =
   | { type: 'UPDATE_GENOME_SIM_COPY'; payload: GenomeSimulationCopy }
   | { type: 'ADD_THERAPEUTIC'; payload: TherapeuticDesign }
   | { type: 'UPDATE_THERAPEUTIC'; payload: TherapeuticDesign }
+  | { type: 'SET_THERAPEUTIC_DESIGNS'; payload: TherapeuticDesign[] }
   | { type: 'SET_LAB_HANDOFF'; payload: LabHandoffPayload | null }
   | { type: 'SET_MICROSCOPE_SPECIMEN'; payload: MicroscopeSpecimen | null }
   | { type: 'SET_EXPERIMENT_SETUP'; payload: ActiveExperimentSetup | null }
@@ -279,7 +287,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'ADD_THERAPEUTIC':
       return {
         ...state,
-        therapeuticDesigns: [...state.therapeuticDesigns, action.payload],
+        therapeuticDesigns: [...state.therapeuticDesigns.filter((t) => t.id !== action.payload.id), action.payload],
       };
     case 'UPDATE_THERAPEUTIC':
       return {
@@ -288,6 +296,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
           t.id === action.payload.id ? action.payload : t,
         ),
       };
+    case 'SET_THERAPEUTIC_DESIGNS':
+      return { ...state, therapeuticDesigns: action.payload };
     case 'SET_LAB_HANDOFF':
       return { ...state, labHandoff: action.payload };
     case 'SET_MICROSCOPE_SPECIMEN':
@@ -323,15 +333,18 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, userWorkspaceActive: action.payload };
     case 'LOAD_STATE': {
       const loaded = sanitizePersistedWorkspace(action.payload as Record<string, unknown>) as Partial<AppState>;
+      const dedicated = loadTherapeuticDesignsFromStorage();
+      const therapeuticDesigns = mergeTherapeuticDesignLists(loaded.therapeuticDesigns, dedicated);
       return {
         ...state,
         ...loaded,
+        therapeuticDesigns,
         settings: { ...defaultSettings, ...sanitizePersistedSettings(loaded.settings), ...loaded.settings },
         genomeUpload: loaded.genomeUpload ?? null,
         activeExperimentSetup: loaded.activeExperimentSetup ?? null,
         controlSimulation: loaded.controlSimulation ?? null,
         priorSimulationSnapshot: loaded.priorSimulationSnapshot ?? null,
-      reportDraft: loaded.reportDraft ?? null,
+        reportDraft: loaded.reportDraft ?? null,
         activeSimulation: loaded.activeSimulation ?? null,
       };
     }
@@ -383,6 +396,9 @@ function loadPersistedState(): Partial<AppState> | null {
 
 function persistState(state: AppState) {
   try {
+    const designs = sanitizeTherapeuticDesigns(state.therapeuticDesigns);
+    // Always write designs to the dedicated key first (small, high-priority payload).
+    persistTherapeuticDesigns(designs);
     const toSave = {
       workspaceStorageVersion: 3,
       experiments: state.experiments,
@@ -392,7 +408,7 @@ function persistState(state: AppState) {
       simulationResults: state.simulationResults,
       simulationRuns: state.simulationRuns,
       projects: state.projects,
-      therapeuticDesigns: state.therapeuticDesigns,
+      therapeuticDesigns: designs,
       genomeSimulationCopies: state.genomeSimulationCopies,
       activeExperimentSetup: state.activeExperimentSetup,
       controlSimulation: state.controlSimulation,
@@ -404,14 +420,25 @@ function persistState(state: AppState) {
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   } catch {
-    // Storage unavailable
+    // Workspace blob may fail on quota — dedicated designs key is already attempted above.
   }
+}
+
+/** Persist a design immediately and return a user-facing result (does not rely on useEffect timing). */
+export function saveTherapeuticDesignNow(
+  designsAfterAdd: TherapeuticDesign[],
+): PersistResult {
+  return persistTherapeuticDesigns(designsAfterAdd);
 }
 
 function initAppState(): AppState {
   const saved = loadPersistedState();
   if (saved) {
     return appReducer(initialState, { type: 'LOAD_STATE', payload: saved });
+  }
+  const dedicated = loadTherapeuticDesignsFromStorage();
+  if (dedicated.length) {
+    return { ...initialState, therapeuticDesigns: dedicated };
   }
   return initialState;
 }
@@ -462,13 +489,18 @@ export function sendToVirtualLab(
   entityId: string,
   label: string,
   type: LabHandoffPayload['type'],
-  extras?: Pick<LabHandoffPayload, 'moleculeRole' | 'formula'>,
+  extras?: Pick<LabHandoffPayload, 'moleculeRole' | 'formula' | 'therapeuticDesign'>,
 ) {
   dispatch({
     type: 'SET_LAB_HANDOFF',
     payload: {
       type,
-      sourceModule: type === 'molecule' ? 'Molecule Explorer' : 'Cross-Lab',
+      sourceModule:
+        type === 'molecule'
+          ? 'Molecule Explorer'
+          : type === 'therapeutic'
+            ? 'Therapeutic Design'
+            : 'Cross-Lab',
       targetModule: 'Virtual Lab',
       entityId,
       label,

@@ -21,6 +21,10 @@ import { TumourMetricsPanel } from '../components/lab/TumourMetricsPanel';
 import { TumourCellMovementReadoutPanel } from '../components/lab/TumourCellMovementReadoutPanel';
 import { TumourTestFlowPanel } from '../components/lab/TumourTestFlowPanel';
 import { buildTumourCellMovementReadout } from '../services/tumourCellMovementReadout';
+import {
+  loadTherapeuticDesignsFromStorage,
+  sanitizeTherapeuticDesign,
+} from '../services/therapeuticDesignPersistence';
 import { forecastViability } from '../services/viabilityForecast';
 import { runExperimentalDesignCheck, generateAutoControlEnvironment } from '../services/designCheck';
 import { useAppState, sendToMicroscope } from '../store/AppContext';
@@ -320,6 +324,9 @@ export function VirtualLabPage() {
 
   useEffect(() => {
     if (!catalogueEntry) return;
+    // Do not auto-init the default Bacteria dish while a Therapeutic Design handoff is pending —
+    // that race left E. coli loaded and hid tumour-cell design apply UI.
+    if (handoff?.targetModule === 'Virtual Lab' && handoff.type === 'therapeutic') return;
     const allowed = assertSimulationAllowed(catalogueEntry.id);
     if (!allowed.ok) return;
     if (!setup) {
@@ -333,7 +340,7 @@ export function VirtualLabPage() {
         dispatch({ type: 'SET_CONTROL_SIMULATION', payload: control });
       }
     }
-  }, [setup, sim, catalogueEntry, initFromCatalogue, dispatch, controlSim]);
+  }, [setup, sim, catalogueEntry, initFromCatalogue, dispatch, controlSim, handoff]);
 
   useEffect(() => {
     if (!setup?.control || controlSim) return;
@@ -375,11 +382,22 @@ export function VirtualLabPage() {
     }
 
     if (handoff.type === 'therapeutic') {
-      const design = state.therapeuticDesigns.find((d) => d.id === handoff.entityId);
+      const fromHandoff = handoff.therapeuticDesign
+        ? sanitizeTherapeuticDesign(handoff.therapeuticDesign)
+        : null;
+      const fromState = state.therapeuticDesigns.find((d) => d.id === handoff.entityId) ?? null;
+      const fromStorage = loadTherapeuticDesignsFromStorage().find((d) => d.id === handoff.entityId) ?? null;
+      const design = fromHandoff ?? fromState ?? fromStorage;
       if (!design) {
-        setActionFeedback('Therapeutic design not found in saved designs.');
+        setActionFeedback(
+          `Therapeutic design “${handoff.label}” was not found in saved designs. Open Therapeutic Design, save again, then send to Virtual Lab.`,
+        );
         dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
         return;
+      }
+      // Keep the list in sync if we recovered the design from handoff embedding / dedicated storage
+      if (!fromState) {
+        dispatch({ type: 'ADD_THERAPEUTIC', payload: design });
       }
 
       const targetId = design.targetCellModelId;
@@ -394,7 +412,7 @@ export function VirtualLabPage() {
           }
           initFromCatalogue(entry, design);
           setActionFeedback(
-            `Loaded ${entry.name} with conceptual treatment “${design.name}” (${THERAPEUTIC_INTENDED_OUTCOME_LABELS[design.intendedOutcome ?? 'growth-suppression']}). Control is untreated. Design settings drive the educational model — pH is not changed by this handoff.`,
+            `Loaded ${entry.name} with conceptual treatment “${design.name}” (${THERAPEUTIC_INTENDED_OUTCOME_LABELS[design.intendedOutcome ?? 'growth-suppression']}). Design settings (uptake, effect, targeting, …) are linked to the educational simulation — control is untreated. Simulated estimates only; not evidence a real treatment works.`,
           );
           dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
           setPendingRole(null);
@@ -408,11 +426,7 @@ export function VirtualLabPage() {
         if (!next.recordedBaseline && sim && !sim.therapeuticTreatment && !next.attachedTherapeutic) {
           next = recordDishBaseline(next, sim, controlSim?.organismState ?? null);
         } else if (!next.recordedBaseline && sim) {
-          // Fall back: capture current as baseline label even if imperfect
-          next = recordDishBaseline(next, {
-            ...sim,
-            // If already treated, still store current for transparency; calc notes cover limitations
-          }, controlSim?.organismState ?? null);
+          next = recordDishBaseline(next, sim, controlSim?.organismState ?? null);
         }
         next = attachTherapeuticToSetup(next, design);
         const treatment = therapeuticConfigFromDesign(design);
@@ -432,7 +446,7 @@ export function VirtualLabPage() {
           applySetupSims(next);
         }
         setActionFeedback(
-          `Attached conceptual treatment “${design.name}”. Baseline preserved for before/after. Control remains untreated. pH unchanged.`,
+          `Attached conceptual treatment “${design.name}” with its saved settings. Baseline preserved for before/after. Control remains untreated. Simulated educational estimates only.`,
         );
         dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
         setPendingRole(null);
@@ -441,9 +455,9 @@ export function VirtualLabPage() {
 
       // No sample yet — default to HeLa for tumour-cell designs, else ask user to pick
       const fallback = organismIndex.getById('ORG-HELA');
-      if (fallback && design.targetType === 'tumour-cell') {
+      if (fallback && (design.targetType === 'tumour-cell' || design.targetCellModelId)) {
         initFromCatalogue(fallback, design);
-        setActionFeedback(`Loaded HeLa with conceptual treatment “${design.name}”. Select another cell model if needed.`);
+        setActionFeedback(`Loaded HeLa with conceptual treatment “${design.name}” and its saved settings. Select another cell model if needed.`);
         dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
         setPendingRole(null);
         return;
@@ -781,6 +795,53 @@ export function VirtualLabPage() {
             onSelect={handleSelectOrganism}
           />
 
+          <div className="saved-therapeutics-panel" aria-label="Saved conceptual therapeutics">
+            <h4 className="saved-therapeutics-heading">Saved conceptual therapeutics</h4>
+            <p className="text-muted saved-therapeutics-hint">
+              Designs saved in Therapeutic Design appear here after navigation and refresh.
+              Applying links their settings into the educational simulation only — not evidence a real treatment works.
+            </p>
+            {state.therapeuticDesigns.length === 0 ? (
+              <p className="text-muted">No saved designs yet. Create and save one in Therapeutic Design.</p>
+            ) : (
+              <ul className="item-list saved-therapeutics-list">
+                {state.therapeuticDesigns.map((d) => {
+                  const cell = d.targetCellModelId ? organismIndex.getById(d.targetCellModelId) : null;
+                  const active = attachedTherapeutic?.designId === d.id;
+                  return (
+                    <li key={d.id}>
+                      <div className="item-meta-block">
+                        <span className="item-name">{d.name}{active ? ' (on dish)' : ''}</span>
+                        <span className="text-muted">
+                          {THERAPEUTIC_INTENDED_OUTCOME_LABELS[d.intendedOutcome ?? 'growth-suppression']}
+                          {cell ? ` · ${cell.name}` : ''}
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant={active ? 'secondary' : 'primary'}
+                        onClick={() => {
+                          const entry = organismIndex.getById(d.targetCellModelId ?? 'ORG-HELA');
+                          if (entry && isTumourCellModel(entry.id)) {
+                            initFromCatalogue(entry, d);
+                            setActionFeedback(
+                              `Applied “${d.name}” to ${entry.name}. Design settings are in the educational simulation; control is untreated. Simulated estimates only.`,
+                            );
+                            return;
+                          }
+                          handleApplyVector(d);
+                        }}
+                        aria-label={`Apply saved design ${d.name} to Virtual Lab dish`}
+                      >
+                        {active ? 'Re-apply to dish' : 'Apply to dish'}
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
           {setup && (
             <details className="experiment-composition-details">
               <summary>Current experiment composition</summary>
@@ -792,7 +853,7 @@ export function VirtualLabPage() {
                 <p className="text-muted" role="status">
                   Attached therapeutic: {attachedTherapeutic.designName} (
                   {THERAPEUTIC_INTENDED_OUTCOME_LABELS[attachedTherapeutic.intendedOutcome]})
-                  — experimental dish only
+                  — experimental dish only · settings from Therapeutic Design
                 </p>
               )}
             </details>

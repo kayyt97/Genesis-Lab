@@ -237,6 +237,8 @@ export interface LabHandoffPayload {
   timestamp: string;
   moleculeRole?: import('./experimentWorkspace').MoleculeTransferRole;
   formula?: string;
+  /** Embedded conceptual design so Virtual Lab can apply settings even if list lookup races */
+  therapeuticDesign?: TherapeuticDesign;
 }
 
 export interface TeachingScenario {

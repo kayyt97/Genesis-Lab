@@ -9,7 +9,7 @@ import { AboutThisTool } from '../components/ui/AboutThisTool';
 import { EXPLAIN } from '../content/explainers';
 import { resolveTiered } from '../content/language';
 import { useLanguage } from '../components/ui/LanguageControl';
-import { useAppState, generateId, sendToVirtualLab } from '../store/AppContext';
+import { useAppState, generateId, sendToVirtualLab, saveTherapeuticDesignNow } from '../store/AppContext';
 import { searchPathwayExplorer } from '../services/pathwaySearch';
 import { organismIndex } from '../catalogue/index';
 import {
@@ -185,28 +185,53 @@ export function TherapeuticDesignPage() {
       setSaveFeedback('Add a target description before saving — even a short educational one.');
       return;
     }
+    if (!form.variables) {
+      setSaveFeedback('Design settings are missing. Refresh the page and try again.');
+      return;
+    }
     const design: TherapeuticDesign = {
       id: generateId('TD'),
-      name: form.name ?? 'Untitled design',
-      targetType: (form.targetType ?? 'pathway') as TherapeuticTargetType,
+      name: (form.name ?? 'Untitled design').trim() || 'Untitled design',
+      targetType: (form.targetType ?? 'tumour-cell') as TherapeuticTargetType,
       targetDescription: form.targetDescription ?? '',
       deliveryModel: (form.deliveryModel ?? 'non-replicating-vector') as DeliveryModelType,
       payloadEffect: (form.payloadEffect ?? 'suppress-target') as PayloadEffectType,
       intendedOutcome: form.intendedOutcome ?? 'growth-suppression',
-      targetCellModelId: form.targetType === 'tumour-cell' ? form.targetCellModelId : undefined,
-      variables: form.variables!,
+      targetCellModelId: form.targetType === 'tumour-cell' || !form.targetType
+        ? (form.targetCellModelId ?? 'ORG-HELA')
+        : undefined,
+      variables: { ...form.variables },
       notes: form.notes ?? '',
       createdAt: new Date().toISOString(),
       evidence: { level: 'speculative', note: 'Conceptual therapeutic model — not a real vector construct' },
     };
+    const nextDesigns = [...state.therapeuticDesigns.filter((d) => d.id !== design.id), design];
+    const persist = saveTherapeuticDesignNow(nextDesigns);
+    if (!persist.ok) {
+      setSaveFeedback(`Save failed: ${persist.error}`);
+      return;
+    }
     dispatch({ type: 'ADD_THERAPEUTIC', payload: design });
     setSaveFeedback(
-      `Saved conceptual design “${design.name}” (${THERAPEUTIC_INTENDED_OUTCOME_LABELS[design.intendedOutcome!]}). Educational model only — not a clinical therapy or real vector.`,
+      `Saved “${design.name}” (${THERAPEUTIC_INTENDED_OUTCOME_LABELS[design.intendedOutcome!]}). It will stay available after navigation and refresh. Educational simulation only — not evidence that a real treatment works.`,
     );
   };
 
   const sendToLab = (design: TherapeuticDesign) => {
-    sendToVirtualLab(dispatch, design.id, design.name, 'therapeutic');
+    // Ensure storage has the design before leaving the page
+    const persist = saveTherapeuticDesignNow(
+      state.therapeuticDesigns.some((d) => d.id === design.id)
+        ? state.therapeuticDesigns
+        : [...state.therapeuticDesigns, design],
+    );
+    if (!persist.ok) {
+      setSaveFeedback(`Could not send to Virtual Lab — save failed: ${persist.error}`);
+      return;
+    }
+    if (!state.therapeuticDesigns.some((d) => d.id === design.id)) {
+      dispatch({ type: 'ADD_THERAPEUTIC', payload: design });
+    }
+    sendToVirtualLab(dispatch, design.id, design.name, 'therapeutic', { therapeuticDesign: design });
     navigate('/virtual-lab');
   };
 
@@ -419,7 +444,14 @@ export function TherapeuticDesignPage() {
               </label>
             ))}
             <Button onClick={save}>Save design</Button>
-            {saveFeedback && <p className="success-text action-feedback" role="status">{saveFeedback}</p>}
+            {saveFeedback && (
+              <p
+                className={saveFeedback.startsWith('Save failed') || saveFeedback.startsWith('Could not') ? 'error-text action-feedback' : 'success-text action-feedback'}
+                role="status"
+              >
+                {saveFeedback}
+              </p>
+            )}
           </div>
         </Card>
 
