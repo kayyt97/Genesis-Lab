@@ -6,9 +6,11 @@ import {
   attachTherapeuticToSetup,
   createExperimentSetup,
   environmentFromSetup,
+  recordDishBaseline,
 } from '../services/experimentWorkspaceService';
 import {
   applyTherapeuticTick,
+  buildBeforeAfterResult,
   buildComparisonRows,
   deriveTumourExperimentSeed,
   designEffectStrengths,
@@ -321,5 +323,91 @@ describe('tumour-cell therapeutic simulation', () => {
     expect(movement.note).toContain('viability is not evidence of reduced movement');
     // Conceptual vector disclaimer: no claim of a real construct
     expect(design.evidence.note.toLowerCase()).toContain('test');
+  });
+
+  test('complete flow: dish → baseline → vector → before/after vs untreated control', () => {
+    const entry = organismIndex.getById('ORG-HELA')!;
+    let setup = createExperimentSetup(entry);
+    const seed = 4242;
+    setup = { ...setup, simulationSeed: seed };
+
+    // 1) Untreated dish + matched control
+    let experimental = createSimulation('ORG-HELA', environmentFromSetup(setup), undefined, { seed });
+    let control = createSimulation('ORG-HELA', setup.control.environment, undefined, {
+      seed,
+      conditionId: setup.control.sampleId,
+    });
+    expect(experimental.therapeuticTreatment).toBeUndefined();
+    expect(control.therapeuticTreatment).toBeUndefined();
+
+    // Optional untreated drift before baseline
+    experimental = runTicks(experimental, 4);
+    control = runTicks(control, 4);
+
+    // 2) Record baseline
+    setup = recordDishBaseline(setup, experimental, control.organismState);
+    expect(setup.recordedBaseline).toBeTruthy();
+    expect(setup.recordedBaseline!.timeHours).toBe(experimental.timeHours);
+    expect(setup.recordedBaseline!.organismState.cellMovement).not.toBeNull();
+
+    const baselineMovement = setup.recordedBaseline!.organismState.cellMovement!;
+    const phAtBaseline = environmentFromSetup(setup).ph;
+
+    // 3) Apply vector in place (no pH change; baseline preserved)
+    const design = makeDesign({
+      id: 'TD-FLOW',
+      name: 'Flow motility vector',
+      intendedOutcome: 'reduce-movement',
+      deliveryModel: 'non-replicating-vector',
+      targetCellModelId: 'ORG-HELA',
+    });
+    setup = attachTherapeuticToSetup(setup, design);
+    expect(environmentFromSetup(setup).ph).toBe(phAtBaseline);
+    expect(setup.recordedBaseline!.organismState.cellMovement).toBe(baselineMovement);
+
+    experimental = {
+      ...experimental,
+      therapeuticTreatment: therapeuticConfigFromDesign(design),
+      seed: setup.simulationSeed ?? seed,
+    };
+    control = { ...control, seed: setup.simulationSeed ?? seed, therapeuticTreatment: undefined };
+
+    // 4) Run after vector
+    experimental = runTicks(experimental, 20);
+    control = runTicks(control, 20);
+
+    const result = buildBeforeAfterResult({
+      cellModelId: 'ORG-HELA',
+      cellModelName: 'HeLa cells',
+      baseline: {
+        timeHours: setup.recordedBaseline!.timeHours,
+        organismState: setup.recordedBaseline!.organismState,
+      },
+      after: experimental.organismState,
+      control: control.organismState,
+      treatment: setup.attachedTherapeutic,
+      seed: setup.recordedBaseline!.seed,
+      elapsedAfterHours: experimental.timeHours,
+    });
+
+    expect(result.designName).toBe('Flow motility vector');
+    expect(result.intendedOutcome).toBe('Reduce cell movement');
+    expect(result.elapsedAfterHours).toBeGreaterThan(result.baselineTimeHours);
+    expect(result.elapsedSinceBaselineHours).toBeGreaterThan(0);
+    expect(result.howCalculated.some((h) => h.includes('% change from baseline'))).toBe(true);
+    expect(result.howCalculated.some((h) => h.includes('simulated educational estimates'))).toBe(true);
+
+    const movement = result.rows.find((r) => r.key === 'cellMovement')!;
+    expect(movement.unit).toBe('%');
+    expect(movement.baseline).toContain('simulated educational estimate');
+    expect(movement.after).toContain('simulated educational estimate');
+    expect(movement.control).toContain('simulated educational estimate');
+    expect(movement.pctChangeFromBaseline).not.toBe('not measured');
+    expect(movement.pctDifferenceVsControl).not.toBe('not measured');
+    expect(movement.calculation).toContain('% change from baseline');
+    expect(movement.calculation).toContain('% difference vs untreated control');
+    expect(movement.note).toContain('viability is not evidence of reduced movement');
+    expect(experimental.organismState.cellMovement!).toBeLessThan(baselineMovement);
+    expect(experimental.organismState.cellMovement!).toBeLessThan(control.organismState.cellMovement!);
   });
 });

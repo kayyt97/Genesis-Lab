@@ -69,6 +69,23 @@ export interface ActiveExperimentSetup {
   simulationSeed?: number;
   /** Conceptual therapeutic attached to the experimental dish only */
   attachedTherapeutic?: import('./index').TherapeuticTreatmentConfig | null;
+  /**
+   * Pre-vector dish snapshot for before/after educational comparison.
+   * Recorded from the experimental dish before (or as) the conceptual vector is applied.
+   */
+  recordedBaseline?: RecordedDishBaseline | null;
+}
+
+/** Snapshot of dish metrics before a conceptual vector/treatment is applied */
+export interface RecordedDishBaseline {
+  recordedAt: string;
+  timeHours: number;
+  tick: number;
+  seed: number;
+  organismState: import('./index').OrganismSimulationState;
+  /** Matched untreated control state at the same moment, when available */
+  controlOrganismState?: import('./index').OrganismSimulationState | null;
+  label: string;
 }
 
 export interface ScientificReportSection {

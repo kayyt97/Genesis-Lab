@@ -18,6 +18,7 @@ import { ControlExperimentPanel } from '../components/lab/ControlExperimentPanel
 import { CultureVisualisation } from '../components/lab/CultureVisualisation';
 import { ScientificReportPanel } from '../components/lab/ScientificReportPanel';
 import { TumourMetricsPanel } from '../components/lab/TumourMetricsPanel';
+import { TumourTestFlowPanel } from '../components/lab/TumourTestFlowPanel';
 import { forecastViability } from '../services/viabilityForecast';
 import { runExperimentalDesignCheck, generateAutoControlEnvironment } from '../services/designCheck';
 import { useAppState, sendToMicroscope } from '../store/AppContext';
@@ -32,6 +33,7 @@ import {
   createDefaultControl,
   attachTherapeuticToSetup,
   isTherapeuticDesignId,
+  recordDishBaseline,
 } from '../services/experimentWorkspaceService';
 import { getSimulationProfile, assertSimulationAllowed } from '../services/organismSimulationProfile';
 import { buildScientificReport } from '../services/reportGenerator';
@@ -46,7 +48,11 @@ import {
   updateSimulationEnvironment,
   formatPopulation,
 } from '../simulation/engine';
-import { deriveTumourExperimentSeed, isTumourCellModel } from '../services/tumourCellSimulation';
+import {
+  deriveTumourExperimentSeed,
+  isTumourCellModel,
+  therapeuticConfigFromDesign,
+} from '../services/tumourCellSimulation';
 import { THERAPEUTIC_INTENDED_OUTCOME_LABELS } from '../types/scientific';
 import type { EnvironmentConditions, TherapeuticTreatmentConfig } from '../types';
 import type { ActiveExperimentSetup, ReportLanguageLevel, MoleculeTransferRole } from '../types/experimentWorkspace';
@@ -174,13 +180,112 @@ export function VirtualLabPage() {
       setActionFeedback(allowed.reason);
       return;
     }
+    // Always start the dish untreated so a true pre-vector baseline can be recorded.
     let experimentSetup = createExperimentSetup(entry);
+    setSelectedCatalogueId(entry.id);
+    const { experimental, control, seed } = pairedSimulations(experimentSetup, null);
+    experimentSetup = { ...experimentSetup, simulationSeed: seed };
+
+    if (therapeutic && isTumourCellModel(entry.id)) {
+      experimentSetup = recordDishBaseline(experimentSetup, experimental, control.organismState);
+      experimentSetup = attachTherapeuticToSetup(experimentSetup, therapeutic);
+      const treated = {
+        ...experimental,
+        seed: experimentSetup.simulationSeed ?? seed,
+        therapeuticTreatment: therapeuticConfigFromDesign(therapeutic),
+      };
+      dispatch({ type: 'SET_EXPERIMENT_SETUP', payload: experimentSetup });
+      dispatch({ type: 'SET_SIMULATION', payload: treated });
+      dispatch({ type: 'SET_CONTROL_SIMULATION', payload: { ...control, seed: experimentSetup.simulationSeed ?? seed } });
+      return;
+    }
+
     if (therapeutic) {
       experimentSetup = attachTherapeuticToSetup(experimentSetup, therapeutic);
+      applySetupSims(experimentSetup);
+      return;
     }
-    setSelectedCatalogueId(entry.id);
+
     applySetupSims(experimentSetup);
-  }, [applySetupSims]);
+  }, [applySetupSims, dispatch]);
+
+  const handleRecordDishBaseline = useCallback(() => {
+    if (!setup || !sim) {
+      setActionFeedback('Select a tumour cell and initialise the dish before recording a baseline.');
+      return;
+    }
+    if (!isTumourCellModel(setup.catalogueEntryId)) {
+      setActionFeedback('Baseline-before-vector flow is for simulation-ready tumour cell models.');
+      return;
+    }
+    if (setup.attachedTherapeutic || sim.therapeuticTreatment) {
+      setActionFeedback('Baseline should be recorded before applying the conceptual vector. Clear the vector or re-select the cell to start untreated.');
+      return;
+    }
+    const updated = recordDishBaseline(setup, sim, controlSim?.organismState ?? null);
+    dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: updated });
+    dispatch({ type: 'SAVE_SIMULATION_SNAPSHOT' });
+    setActionFeedback(
+      `Baseline recorded at ${sim.timeHours.toFixed(2)} simulated hours (tick ${sim.currentTick}). Values are simulated educational estimates.`,
+    );
+  }, [setup, sim, controlSim, dispatch]);
+
+  const handleApplyVector = useCallback((design: TherapeuticDesign) => {
+    if (!setup || !sim) {
+      setActionFeedback('Load a tumour cell into the dish first.');
+      return;
+    }
+    if (!isTumourCellModel(setup.catalogueEntryId)) {
+      setActionFeedback('Conceptual vector apply-on-dish is for tumour cell models.');
+      return;
+    }
+
+    let next = setup;
+    // Ensure a baseline exists before vector so before/after is meaningful
+    if (!next.recordedBaseline) {
+      if (sim.therapeuticTreatment || next.attachedTherapeutic) {
+        setActionFeedback('Cannot invent a pre-vector baseline after treatment started. Re-select the cell, record baseline, then apply the vector.');
+        return;
+      }
+      next = recordDishBaseline(next, sim, controlSim?.organismState ?? null);
+    }
+
+    next = attachTherapeuticToSetup(next, design);
+    const treatment = therapeuticConfigFromDesign(design);
+    // Keep current dish state (and baseline); attach treatment in place — do not wipe metrics.
+    const treatedSim = {
+      ...sim,
+      seed: next.simulationSeed ?? sim.seed,
+      therapeuticTreatment: treatment,
+    };
+    const matchedControl = controlSim
+      ? { ...controlSim, seed: next.simulationSeed ?? controlSim.seed, therapeuticTreatment: undefined }
+      : createSimulation(next.catalogueEntryId, next.control.environment, undefined, {
+        seed: next.simulationSeed,
+        conditionId: next.control.sampleId,
+      });
+
+    dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: next });
+    dispatch({ type: 'SET_SIMULATION', payload: treatedSim });
+    dispatch({ type: 'SET_CONTROL_SIMULATION', payload: matchedControl });
+    setActionFeedback(
+      `Applied conceptual vector “${design.name}” (${THERAPEUTIC_INTENDED_OUTCOME_LABELS[design.intendedOutcome ?? 'growth-suppression']}). pH unchanged. Control remains untreated. Step the simulation to see before/after.`,
+    );
+  }, [setup, sim, controlSim, dispatch]);
+
+  const handleFlowRunSteps = useCallback((n: number) => {
+    if (!sim) return;
+    let nextExp = sim.status === 'running' ? sim : startSimulation(sim);
+    let nextCtrl = controlSim
+      ? (controlSim.status === 'running' ? controlSim : startSimulation(controlSim))
+      : null;
+    for (let i = 0; i < n; i++) {
+      nextExp = simulationTick(nextExp);
+      if (nextCtrl && controlActive) nextCtrl = simulationTick(nextCtrl);
+    }
+    dispatch({ type: 'SET_SIMULATION', payload: pauseSimulation(nextExp) });
+    if (nextCtrl) dispatch({ type: 'SET_CONTROL_SIMULATION', payload: pauseSimulation(nextCtrl) });
+  }, [sim, controlSim, controlActive, dispatch]);
 
   useEffect(() => {
     if (setup?.catalogueEntryId) setSelectedCatalogueId(setup.catalogueEntryId);
@@ -271,10 +376,36 @@ export function VirtualLabPage() {
       }
 
       if (setup) {
-        const updated = attachTherapeuticToSetup(setup, design);
-        applySetupSims(updated);
+        // Prefer in-place apply with baseline so before/after is available
+        let next = setup;
+        if (!next.recordedBaseline && sim && !sim.therapeuticTreatment && !next.attachedTherapeutic) {
+          next = recordDishBaseline(next, sim, controlSim?.organismState ?? null);
+        } else if (!next.recordedBaseline && sim) {
+          // Fall back: capture current as baseline label even if imperfect
+          next = recordDishBaseline(next, {
+            ...sim,
+            // If already treated, still store current for transparency; calc notes cover limitations
+          }, controlSim?.organismState ?? null);
+        }
+        next = attachTherapeuticToSetup(next, design);
+        const treatment = therapeuticConfigFromDesign(design);
+        if (sim) {
+          dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: next });
+          dispatch({
+            type: 'SET_SIMULATION',
+            payload: { ...sim, seed: next.simulationSeed ?? sim.seed, therapeuticTreatment: treatment },
+          });
+          if (controlSim) {
+            dispatch({
+              type: 'SET_CONTROL_SIMULATION',
+              payload: { ...controlSim, seed: next.simulationSeed ?? controlSim.seed, therapeuticTreatment: undefined },
+            });
+          }
+        } else {
+          applySetupSims(next);
+        }
         setActionFeedback(
-          `Attached conceptual treatment “${design.name}”. Control remains untreated. Design settings are linked to the experimental dish (no pH shortcut).`,
+          `Attached conceptual treatment “${design.name}”. Baseline preserved for before/after. Control remains untreated. pH unchanged.`,
         );
         dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
         setPendingRole(null);
@@ -298,7 +429,7 @@ export function VirtualLabPage() {
 
     if (handoff.type !== 'molecule') return;
     setPendingRole(handoff.moleculeRole ?? inferMoleculeRole(handoff.entityId, handoff.label));
-  }, [handoff, dispatch, initFromCatalogue, setup, state.therapeuticDesigns, applySetupSims]);
+  }, [handoff, dispatch, initFromCatalogue, setup, state.therapeuticDesigns, applySetupSims, sim, controlSim]);
 
   const applyHandoffMolecule = (role: MoleculeTransferRole) => {
     if (!handoff || !setup) return;
@@ -306,8 +437,7 @@ export function VirtualLabPage() {
     if (isTherapeuticDesignId(handoff.entityId) && role === 'treatment') {
       const design = state.therapeuticDesigns.find((d) => d.id === handoff.entityId);
       if (design) {
-        const updated = attachTherapeuticToSetup(setup, design);
-        applySetupSims(updated);
+        handleApplyVector(design);
         dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
         setPendingRole(null);
         return;
@@ -422,6 +552,14 @@ export function VirtualLabPage() {
       return;
     }
     dispatch({ type: 'SAVE_SIMULATION_SNAPSHOT' });
+    if (setup && isTumourCellModel(setup.catalogueEntryId) && !setup.attachedTherapeutic && !sim.therapeuticTreatment) {
+      const updated = recordDishBaseline(setup, sim, controlSim?.organismState ?? null);
+      dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: updated });
+      setActionFeedback(
+        `Baseline recorded at ${sim.timeHours.toFixed(2)} simulated hours for before/after tumour-cell comparison (simulated educational estimates).`,
+      );
+      return;
+    }
     setActionFeedback('Baseline saved for comparison (Research Assistant and this session).');
   };
 
@@ -669,7 +807,19 @@ export function VirtualLabPage() {
           <p className="env-note text-muted">Changing environmental variables applies prototype educational rules — not validated physical models.</p>
         </Card>
 
-        <Card title="Measurements">
+        <Card title="Measurements" className="span-2">
+          {setup && isTumourCellModel(setup.catalogueEntryId) && (
+            <TumourTestFlowPanel
+              setup={setup}
+              organismName={catalogueEntry?.name ?? setup.sampleDisplayName}
+              experimentalSim={sim}
+              controlSim={controlSim}
+              designs={state.therapeuticDesigns}
+              onRecordBaseline={handleRecordDishBaseline}
+              onApplyVector={handleApplyVector}
+              onRunSteps={handleFlowRunSteps}
+            />
+          )}
           {sim && displayState ? (
             <div className="metrics-grid">
               <Metric label="Population" value={formatPopulation(displayState.population)} />
