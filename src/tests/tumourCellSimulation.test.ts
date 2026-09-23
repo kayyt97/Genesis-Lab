@@ -262,4 +262,64 @@ describe('tumour-cell therapeutic simulation', () => {
     const withTd = applyMoleculeToSetup(setup, { id: 'TD-FAKE', name: 'Fake therapeutic', formula: 'x' }, 'treatment');
     expect(environmentFromSetup(withTd).ph).toBe(environmentFromSetup(setup).ph);
   });
+
+  /**
+   * Smallest working path: tumour cell in dish + conceptual vector/design →
+   * measurable educational outputs on experimental vs untreated control.
+   */
+  test('tumour-cell dish + measurable conceptual vector (smallest working path)', () => {
+    const entry = organismIndex.getById('ORG-HELA')!;
+    expect(entry.simulationReady).toBe(true);
+
+    const design = makeDesign({
+      id: 'TD-VEC-MIN',
+      name: 'Minimal motility vector concept',
+      deliveryModel: 'non-replicating-vector',
+      intendedOutcome: 'reduce-movement',
+      targetCellModelId: 'ORG-HELA',
+    });
+
+    const dish = attachTherapeuticToSetup(createExperimentSetup(entry), design);
+    const phBeforeAttach = createExperimentSetup(entry).environment.ph;
+    expect(environmentFromSetup(dish).ph).toBe(phBeforeAttach);
+    expect(dish.attachedTherapeutic?.designName).toBe('Minimal motility vector concept');
+    expect(dish.control.displayName).toContain('control');
+
+    const seed = dish.simulationSeed!;
+    const treatment = dish.attachedTherapeutic!;
+    const experimental = runTicks(
+      createSimulation('ORG-HELA', environmentFromSetup(dish), undefined, {
+        seed,
+        therapeuticTreatment: treatment,
+      }),
+      16,
+    );
+    const control = runTicks(
+      createSimulation('ORG-HELA', dish.control.environment, undefined, {
+        seed,
+        conditionId: dish.control.sampleId,
+      }),
+      16,
+    );
+
+    const rows = buildComparisonRows(
+      experimental.organismState,
+      control.organismState,
+      'ORG-HELA',
+      'reduce-movement',
+    );
+    const movement = rows.find((r) => r.metric === 'Cell movement')!;
+    const proliferation = rows.find((r) => r.metric === 'Proliferation')!;
+    const viability = rows.find((r) => r.metric === 'Viability')!;
+
+    expect(movement.experimental).toContain('simulated educational estimate');
+    expect(movement.control).toContain('simulated educational estimate');
+    expect(movement.percentDifference).not.toBe('not measured');
+    expect(proliferation.experimental).toContain('simulated educational estimate');
+    expect(viability.experimental).toContain('simulated educational estimate');
+    expect(experimental.organismState.cellMovement!).toBeLessThan(control.organismState.cellMovement!);
+    expect(movement.note).toContain('viability is not evidence of reduced movement');
+    // Conceptual vector disclaimer: no claim of a real construct
+    expect(design.evidence.note.toLowerCase()).toContain('test');
+  });
 });
