@@ -106,6 +106,9 @@ export function createOrganismStateFromProfile(organismId: string): OrganismSimu
     stress: p.category === 'prions' ? 50 : p.category === 'viruses' ? 15 : 5,
     mutationIndicator: p.category === 'viruses' ? 5 : p.category === 'prions' ? 20 : 1,
     environmentalTolerance: p.environmentalTolerance,
+    /** Tumour educational metrics — filled when simulation starts with a seed */
+    cellMovement: null,
+    proliferation: null,
   };
 }
 

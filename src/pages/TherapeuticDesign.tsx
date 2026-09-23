@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -11,7 +11,15 @@ import { resolveTiered } from '../content/language';
 import { useLanguage } from '../components/ui/LanguageControl';
 import { useAppState, generateId, sendToVirtualLab } from '../store/AppContext';
 import { searchPathwayExplorer } from '../services/pathwaySearch';
-import type { TherapeuticDesign, TherapeuticTargetType, DeliveryModelType, PayloadEffectType } from '../types/scientific';
+import { organismIndex } from '../catalogue/index';
+import {
+  THERAPEUTIC_INTENDED_OUTCOME_LABELS,
+  type TherapeuticDesign,
+  type TherapeuticTargetType,
+  type DeliveryModelType,
+  type PayloadEffectType,
+  type TherapeuticIntendedOutcome,
+} from '../types/scientific';
 
 const SAFETY_NOTICE =
   'This module supports conceptual therapeutic modelling only. It does not output viable pathogen sequences, replication-competent designs, or wet-lab construction protocols.';
@@ -126,6 +134,12 @@ const GUIDED_OPTIONS: { id: GuidedStart; label: string; explanation: { simple: s
   },
 ];
 
+const OUTCOME_OPTIONS: TherapeuticIntendedOutcome[] = [
+  'reduce-movement',
+  'growth-suppression',
+  'cell-killing',
+];
+
 export function TherapeuticDesignPage() {
   const { state, dispatch } = useAppState();
   const navigate = useNavigate();
@@ -136,10 +150,12 @@ export function TherapeuticDesignPage() {
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<TherapeuticDesign>>({
     name: 'Conceptual therapeutic design',
-    targetType: 'pathway',
+    targetType: 'tumour-cell',
     targetDescription: '',
     deliveryModel: 'non-replicating-vector',
     payloadEffect: 'suppress-target',
+    intendedOutcome: 'growth-suppression',
+    targetCellModelId: 'ORG-HELA',
     variables: {
       targetingPreference: 70,
       uptake: 50,
@@ -152,6 +168,15 @@ export function TherapeuticDesignPage() {
     },
     notes: '',
   });
+
+  const tumourCellModels = useMemo(
+    () => organismIndex.query({
+      category: 'tumours-cancer',
+      simulationReady: true,
+      pageSize: 48,
+    }).items.filter((e) => e.entryKind === 'tumour-cell-line'),
+    [],
+  );
 
   const guidedResults = guidedQuery.trim() ? searchPathwayExplorer(guidedQuery) : [];
 
@@ -167,17 +192,21 @@ export function TherapeuticDesignPage() {
       targetDescription: form.targetDescription ?? '',
       deliveryModel: (form.deliveryModel ?? 'non-replicating-vector') as DeliveryModelType,
       payloadEffect: (form.payloadEffect ?? 'suppress-target') as PayloadEffectType,
+      intendedOutcome: form.intendedOutcome ?? 'growth-suppression',
+      targetCellModelId: form.targetType === 'tumour-cell' ? form.targetCellModelId : undefined,
       variables: form.variables!,
       notes: form.notes ?? '',
       createdAt: new Date().toISOString(),
-      evidence: { level: 'speculative', note: 'Conceptual therapeutic model' },
+      evidence: { level: 'speculative', note: 'Conceptual therapeutic model — not a real vector construct' },
     };
     dispatch({ type: 'ADD_THERAPEUTIC', payload: design });
-    setSaveFeedback(`Saved conceptual design “${design.name}”. This is an educational model — not a clinical therapy.`);
+    setSaveFeedback(
+      `Saved conceptual design “${design.name}” (${THERAPEUTIC_INTENDED_OUTCOME_LABELS[design.intendedOutcome!]}). Educational model only — not a clinical therapy or real vector.`,
+    );
   };
 
-  const sendToLab = (id: string, name: string) => {
-    sendToVirtualLab(dispatch, id, name, 'therapeutic');
+  const sendToLab = (design: TherapeuticDesign) => {
+    sendToVirtualLab(dispatch, design.id, design.name, 'therapeutic');
     navigate('/virtual-lab');
   };
 
@@ -200,7 +229,7 @@ export function TherapeuticDesignPage() {
         }
       />
 
-      <div className="safety-notice">{SAFETY_NOTICE}</div>
+      <div className="safety-notice" role="note">{SAFETY_NOTICE}</div>
 
       <AboutThisTool
         title="Understanding Therapeutic Design"
@@ -217,11 +246,11 @@ export function TherapeuticDesignPage() {
         </div>
         <dl className="detail-dl about-tx-dl">
           <dt>What am I designing?</dt>
-          <dd>A conceptual model: target type, target description, delivery model, payload effect, and teaching sliders for selectivity, uptake, effect, immune noticeability, clearance, off-target risk, resistance, and toxicity proxy.</dd>
+          <dd>A conceptual model: target type, target description, delivery model, payload effect, intended outcome, and teaching sliders for selectivity, uptake, effect, immune noticeability, clearance, off-target risk, resistance, and toxicity proxy.</dd>
           <dt>What problem could this address?</dt>
-          <dd>Any educational scenario you describe — for example reducing an overactive pathway node or restoring a missing function — for discussion only.</dd>
+          <dd>Any educational scenario you describe — for example reducing cell movement, suppressing growth, or exploring cell killing concepts — for discussion only.</dd>
           <dt>What does the result mean?</dt>
-          <dd>A saved teaching artefact of your choices for Virtual Lab handoff and learning — not proof of safety or efficacy.</dd>
+          <dd>A saved teaching artefact of your choices for Virtual Lab handoff and learning — not proof of safety or efficacy, and not a real vector construct.</dd>
         </dl>
       </AboutThisTool>
 
@@ -253,6 +282,7 @@ export function TherapeuticDesignPage() {
                   placeholder="Search a gene or process (e.g. HTT, DNA repair)…"
                   value={guidedQuery}
                   onChange={(e) => setGuidedQuery(e.target.value)}
+                  aria-label="Search guided targets"
                 />
                 {guidedResults.length > 0 && (
                   <ul className="search-results">
@@ -287,10 +317,17 @@ export function TherapeuticDesignPage() {
       <div className="therapeutic-layout">
         <Card title="Build Conceptual Design">
           <div className="form-section">
-            <label>Name<input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+            <label>
+              Name
+              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Design name" />
+            </label>
             <label>
               Target type
-              <select value={form.targetType} onChange={(e) => setForm({ ...form, targetType: e.target.value as TherapeuticTargetType })}>
+              <select
+                value={form.targetType}
+                onChange={(e) => setForm({ ...form, targetType: e.target.value as TherapeuticTargetType })}
+                aria-label="Target type"
+              >
                 <option value="tumour-cell">Tumour cell</option>
                 <option value="infected-cell">Infected cell</option>
                 <option value="receptor">Receptor</option>
@@ -298,11 +335,53 @@ export function TherapeuticDesignPage() {
                 <option value="gene-function">Gene / function</option>
               </select>
             </label>
-            <label>Target description<textarea value={form.targetDescription} onChange={(e) => setForm({ ...form, targetDescription: e.target.value })} rows={2} /></label>
+            {form.targetType === 'tumour-cell' && (
+              <label>
+                Catalogue cell model
+                <select
+                  value={form.targetCellModelId ?? ''}
+                  onChange={(e) => setForm({ ...form, targetCellModelId: e.target.value || undefined })}
+                  aria-label="Catalogue tumour cell model"
+                >
+                  <option value="">Select a simulation-ready cell line…</option>
+                  {tumourCellModels.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label>
+              Target description
+              <textarea
+                value={form.targetDescription}
+                onChange={(e) => setForm({ ...form, targetDescription: e.target.value })}
+                rows={2}
+                aria-label="Target description"
+              />
+            </label>
+            <label>
+              Intended outcome
+              <select
+                value={form.intendedOutcome ?? 'growth-suppression'}
+                onChange={(e) => setForm({ ...form, intendedOutcome: e.target.value as TherapeuticIntendedOutcome })}
+                aria-label="Intended educational outcome"
+              >
+                {OUTCOME_OPTIONS.map((o) => (
+                  <option key={o} value={o}>{THERAPEUTIC_INTENDED_OUTCOME_LABELS[o]}</option>
+                ))}
+              </select>
+            </label>
+            <p className="text-muted" role="note">
+              Growth suppression and cell killing remain separate from reduce cell movement. Virtual Lab reports each metric independently — a viability drop is never shown as proof of reduced movement.
+            </p>
             <label>
               Delivery model{' '}
               <ExplainThis title="Delivery / vector" content={EXPLAIN.vector} />
-              <select value={form.deliveryModel} onChange={(e) => setForm({ ...form, deliveryModel: e.target.value as DeliveryModelType })}>
+              <select
+                value={form.deliveryModel}
+                onChange={(e) => setForm({ ...form, deliveryModel: e.target.value as DeliveryModelType })}
+                aria-label="Delivery model"
+              >
                 <option value="non-replicating-vector">Non-replicating vector (conceptual)</option>
                 <option value="lipid-carrier">Lipid carrier</option>
                 <option value="nanoparticle">Nanoparticle</option>
@@ -311,7 +390,11 @@ export function TherapeuticDesignPage() {
             </label>
             <label>
               Payload effect
-              <select value={form.payloadEffect} onChange={(e) => setForm({ ...form, payloadEffect: e.target.value as PayloadEffectType })}>
+              <select
+                value={form.payloadEffect}
+                onChange={(e) => setForm({ ...form, payloadEffect: e.target.value as PayloadEffectType })}
+                aria-label="Payload effect"
+              >
                 <option value="suppress-target">Suppress target</option>
                 <option value="restore-function">Restore function</option>
                 <option value="alter-expression">Alter expression</option>
@@ -325,7 +408,14 @@ export function TherapeuticDesignPage() {
                   <ExplainThis title={key} content={PARAM_EXPLAIN[key]} />
                 </span>
                 : {v[key]}
-                <input type="range" min={0} max={100} value={v[key]} onChange={(e) => setForm({ ...form, variables: { ...v, [key]: parseInt(e.target.value, 10) } })} />
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={v[key]}
+                  onChange={(e) => setForm({ ...form, variables: { ...v, [key]: parseInt(e.target.value, 10) } })}
+                  aria-label={key.replace(/([A-Z])/g, ' $1')}
+                />
               </label>
             ))}
             <Button onClick={save}>Save design</Button>
@@ -338,14 +428,24 @@ export function TherapeuticDesignPage() {
             <p className="text-muted">No saved designs yet.</p>
           ) : (
             <ul className="item-list">
-              {state.therapeuticDesigns.map((d) => (
-                <li key={d.id}>
-                  <span className="item-name">{d.name}</span>
-                  <Button size="sm" variant="secondary" onClick={() => sendToLab(d.id, d.name)}>
-                    Send to Virtual Lab
-                  </Button>
-                </li>
-              ))}
+              {state.therapeuticDesigns.map((d) => {
+                const outcome = d.intendedOutcome ?? 'growth-suppression';
+                const cell = d.targetCellModelId ? organismIndex.getById(d.targetCellModelId) : null;
+                return (
+                  <li key={d.id}>
+                    <div className="item-meta-block">
+                      <span className="item-name">{d.name}</span>
+                      <span className="text-muted">
+                        {THERAPEUTIC_INTENDED_OUTCOME_LABELS[outcome]}
+                        {cell ? ` · ${cell.name}` : ''}
+                      </span>
+                    </div>
+                    <Button size="sm" variant="secondary" onClick={() => sendToLab(d)} aria-label={`Send ${d.name} to Virtual Lab`}>
+                      Send to Virtual Lab
+                    </Button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>

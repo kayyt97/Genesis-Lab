@@ -1,8 +1,10 @@
 import type { ActiveExperimentSetup, ControlConfiguration, TransferredMolecule } from '../types/experimentWorkspace';
-import type { EnvironmentConditions } from '../types';
+import type { EnvironmentConditions, TherapeuticTreatmentConfig } from '../types';
 import type { OrganismCatalogueEntry } from '../catalogue/types';
+import type { TherapeuticDesign } from '../types/scientific';
 import { nextStableId } from './idGenerator';
 import { defaultEnvironment } from '../data/demoData';
+import { deriveTumourExperimentSeed, therapeuticConfigFromDesign } from './tumourCellSimulation';
 
 export function createExperimentSetup(
   entry: OrganismCatalogueEntry,
@@ -80,17 +82,75 @@ export function applyMoleculeToSetup(
   };
 }
 
+/**
+ * Map transferred molecules into environment inputs.
+ * Therapeutic designs (TD-*) must NOT use the legacy pH-drop treatment shortcut —
+ * their effects are applied via attachedTherapeutic + the tumour-cell educational model.
+ */
 export function environmentFromSetup(setup: ActiveExperimentSetup): EnvironmentConditions {
   const env = { ...setup.environment };
   const hasWater = setup.transferredMolecules.some((m) => m.moleculeId === 'MOL-H2O' || m.name === 'Water');
   if (hasWater) {
     env.nutrientAvailability = Math.min(100, env.nutrientAvailability + 5);
   }
-  const treatments = setup.transferredMolecules.filter((m) => m.role === 'treatment');
-  if (treatments.length) {
-    env.ph = Math.max(0, env.ph - treatments.length * 0.2);
+  const moleculeTreatments = setup.transferredMolecules.filter(
+    (m) => m.role === 'treatment' && !isTherapeuticDesignId(m.moleculeId),
+  );
+  if (moleculeTreatments.length) {
+    env.ph = Math.max(0, env.ph - moleculeTreatments.length * 0.2);
   }
   return env;
+}
+
+export function isTherapeuticDesignId(id: string): boolean {
+  return id.startsWith('TD-');
+}
+
+/** Attach a saved conceptual therapeutic to the experimental dish only (control stays untreated). */
+export function attachTherapeuticToSetup(
+  setup: ActiveExperimentSetup,
+  design: TherapeuticDesign,
+): ActiveExperimentSetup {
+  const now = new Date().toISOString();
+  const config = therapeuticConfigFromDesign(design);
+  const asMolecule = applyMoleculeToSetup(
+    setup,
+    { id: design.id, name: design.name, formula: 'conceptual-therapeutic' },
+    'treatment',
+  );
+  const seed = deriveTumourExperimentSeed(design.id, setup.catalogueEntryId, setup.simulationSeed);
+  return {
+    ...asMolecule,
+    attachedTherapeutic: config,
+    simulationSeed: seed,
+    updatedAt: now,
+    history: [
+      ...asMolecule.history,
+      {
+        timestamp: now,
+        type: 'therapeutic-attach',
+        detail: `Conceptual therapeutic “${design.name}” (${design.intendedOutcome}) attached to experimental dish; control remains untreated`,
+      },
+    ],
+  };
+}
+
+export function clearAttachedTherapeutic(setup: ActiveExperimentSetup): ActiveExperimentSetup {
+  const now = new Date().toISOString();
+  return {
+    ...setup,
+    attachedTherapeutic: null,
+    transferredMolecules: setup.transferredMolecules.filter((m) => !isTherapeuticDesignId(m.moleculeId)),
+    updatedAt: now,
+    history: [
+      ...setup.history,
+      { timestamp: now, type: 'therapeutic-clear', detail: 'Conceptual therapeutic detached from experimental dish' },
+    ],
+  };
+}
+
+export function getAttachedTherapeutic(setup: ActiveExperimentSetup | null | undefined): TherapeuticTreatmentConfig | null {
+  return setup?.attachedTherapeutic ?? null;
 }
 
 export function inferMoleculeRole(moleculeId: string, name: string): TransferredMolecule['role'] {

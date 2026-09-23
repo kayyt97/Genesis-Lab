@@ -65,6 +65,10 @@ export interface ActiveExperimentSetup {
   updatedAt: string;
   startedAt?: string;
   completedAt?: string;
+  /** Shared deterministic seed for experimental + control pair */
+  simulationSeed?: number;
+  /** Conceptual therapeutic attached to the experimental dish only */
+  attachedTherapeutic?: import('./index').TherapeuticTreatmentConfig | null;
 }
 
 export interface ScientificReportSection {

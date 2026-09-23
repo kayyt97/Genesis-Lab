@@ -138,6 +138,18 @@ export type PayloadEffectType =
   | 'alter-expression'
   | 'conceptual-payload';
 
+/** Conceptual intended outcomes for educational tumour-cell modelling */
+export type TherapeuticIntendedOutcome =
+  | 'reduce-movement'
+  | 'growth-suppression'
+  | 'cell-killing';
+
+export const THERAPEUTIC_INTENDED_OUTCOME_LABELS: Record<TherapeuticIntendedOutcome, string> = {
+  'reduce-movement': 'Reduce cell movement',
+  'growth-suppression': 'Growth suppression',
+  'cell-killing': 'Cell killing',
+};
+
 export interface TherapeuticDesign {
   id: string;
   name: string;
@@ -145,6 +157,10 @@ export interface TherapeuticDesign {
   targetDescription: string;
   deliveryModel: DeliveryModelType;
   payloadEffect: PayloadEffectType;
+  /** Educational intended outcome — kept separate from payload effect */
+  intendedOutcome?: TherapeuticIntendedOutcome;
+  /** Catalogue cell-line id (e.g. ORG-HELA) when targeting a tumour cell model */
+  targetCellModelId?: string;
   variables: {
     targetingPreference: number;
     uptake: number;

@@ -5,9 +5,11 @@ import type {
   SimulationEvent,
   SimulationSnapshot,
   DataSourceMeta,
+  TherapeuticTreatmentConfig,
 } from '../types';
 import { seededRange, generateSeed } from '../services/seededRandom';
 import { createOrganismStateFromProfile, getSimulationProfile } from '../services/organismSimulationProfile';
+import { applyTherapeuticTick, initialTumourMetrics, isTumourCellModel } from '../services/tumourCellSimulation';
 
 export const SIMULATION_METADATA: DataSourceMeta = {
   sourceType: 'simulation',
@@ -16,26 +18,34 @@ export const SIMULATION_METADATA: DataSourceMeta = {
     'Results are produced by a prototype educational model using simplified deterministic rules. They do not represent validated biological predictions or clinical outcomes.',
 };
 
-export function createInitialOrganismState(organismId: string): OrganismSimulationState {
+export function createInitialOrganismState(organismId: string, seed = 42): OrganismSimulationState {
   const legacy = legacyOrganismState(organismId);
-  if (legacy) return legacy;
-  return createOrganismStateFromProfile(organismId);
+  const base = legacy ?? createOrganismStateFromProfile(organismId);
+  if (isTumourCellModel(organismId)) {
+    const tumour = initialTumourMetrics(organismId, seed);
+    return { ...base, ...tumour };
+  }
+  return {
+    ...base,
+    cellMovement: base.cellMovement ?? null,
+    proliferation: base.proliferation ?? null,
+  };
 }
 
 function legacyOrganismState(organismId: string): OrganismSimulationState | null {
   switch (organismId) {
     case 'ORG-001':
-      return { population: 1_000_000, viability: 95, replicationRate: 0.6, stress: 5, mutationIndicator: 1, environmentalTolerance: 80 };
+      return { population: 1_000_000, viability: 95, replicationRate: 0.6, stress: 5, mutationIndicator: 1, environmentalTolerance: 80, cellMovement: null, proliferation: null };
     case 'ORG-002':
-      return { population: 100_000, viability: 70, replicationRate: 0.3, stress: 15, mutationIndicator: 5, environmentalTolerance: 40 };
+      return { population: 100_000, viability: 70, replicationRate: 0.3, stress: 15, mutationIndicator: 5, environmentalTolerance: 40, cellMovement: null, proliferation: null };
     case 'ORG-003':
-      return { population: 1_000_000, viability: 95, replicationRate: 0.35, stress: 5, mutationIndicator: 1, environmentalTolerance: 75 };
+      return { population: 1_000_000, viability: 95, replicationRate: 0.35, stress: 5, mutationIndicator: 1, environmentalTolerance: 75, cellMovement: null, proliferation: null };
     case 'ORG-004':
-      return { population: 500_000, viability: 90, replicationRate: 0.15, stress: 10, mutationIndicator: 2, environmentalTolerance: 60 };
+      return { population: 500_000, viability: 90, replicationRate: 0.15, stress: 10, mutationIndicator: 2, environmentalTolerance: 60, cellMovement: null, proliferation: null };
     case 'ORG-005':
-      return { population: 1, viability: 100, replicationRate: 0, stress: 0, mutationIndicator: 0, environmentalTolerance: 70 };
+      return { population: 1, viability: 100, replicationRate: 0, stress: 0, mutationIndicator: 0, environmentalTolerance: 70, cellMovement: null, proliferation: null };
     case 'ORG-006':
-      return { population: 1000, viability: 30, replicationRate: 0.05, stress: 50, mutationIndicator: 20, environmentalTolerance: 95 };
+      return { population: 1000, viability: 30, replicationRate: 0.05, stress: 50, mutationIndicator: 20, environmentalTolerance: 95, cellMovement: null, proliferation: null };
     default:
       return null;
   }
@@ -45,8 +55,14 @@ export function createSimulation(
   organismId: string,
   environment: EnvironmentConditions,
   experimentId?: string,
-  opts?: { seed?: number; variabilityEnabled?: boolean; conditionId?: string },
+  opts?: {
+    seed?: number;
+    variabilityEnabled?: boolean;
+    conditionId?: string;
+    therapeuticTreatment?: TherapeuticTreatmentConfig | null;
+  },
 ): Simulation {
+  const seed = opts?.seed ?? generateSeed();
   return {
     id: `SIM-${Date.now()}`,
     experimentId,
@@ -55,14 +71,15 @@ export function createSimulation(
     speed: 1,
     currentTick: 0,
     timeHours: 0,
-    organismState: createInitialOrganismState(organismId),
+    organismState: createInitialOrganismState(organismId, seed),
     environment: { ...environment },
     events: [],
     snapshots: [],
     metadata: SIMULATION_METADATA,
-    seed: opts?.seed ?? generateSeed(),
+    seed,
     variabilityEnabled: opts?.variabilityEnabled ?? false,
     conditionId: opts?.conditionId,
+    therapeuticTreatment: opts?.therapeuticTreatment ?? undefined,
   };
 }
 
@@ -115,6 +132,7 @@ export function simulationTick(sim: Simulation): Simulation {
   const env = { ...sim.environment, incubationTime: newTimeHours };
   const stress = computeEnvironmentalStress(env, sim.organismId);
   const prev = sim.organismState;
+  const seed = sim.seed ?? 42;
 
   // Replication rate modulated by stress and nutrients
   const nutrientFactor = env.nutrientAvailability / 100;
@@ -152,21 +170,38 @@ export function simulationTick(sim: Simulation): Simulation {
   const toleranceDelta = stress > 0.5 ? -0.2 * dt : 0.05 * dt;
   const newTolerance = clamp(prev.environmentalTolerance + toleranceDelta, 0, 100);
 
-  const newState: OrganismSimulationState = {
+  const baseState: OrganismSimulationState = {
     population: newPopulation,
     viability: newViability,
     replicationRate: effectiveReplication * replicationNoise,
     stress: newStress,
     mutationIndicator: newMutation,
     environmentalTolerance: newTolerance,
+    cellMovement: prev.cellMovement,
+    proliferation: prev.proliferation,
   };
+
+  // Tumour educational metrics + conceptual therapeutic (experimental dish only).
+  // Control sims omit therapeuticTreatment so they stay untreated.
+  const newState = applyTherapeuticTick({
+    organismId: sim.organismId,
+    prev: baseState,
+    stress,
+    dt,
+    tick: newTick,
+    seed,
+    treatment: sim.therapeuticTreatment ?? null,
+  });
 
   const events: SimulationEvent[] = [...sim.events];
   if (newTick === 1) {
+    const treatmentNote = sim.therapeuticTreatment
+      ? ` — conceptual treatment “${sim.therapeuticTreatment.designName}” (${sim.therapeuticTreatment.intendedOutcome})`
+      : '';
     events.push({
       tick: newTick,
       timeHours: newTimeHours,
-      message: 'Simulation started — prototype educational model active',
+      message: `Simulation started — prototype educational model active${treatmentNote}`,
       type: 'info',
     });
   }
@@ -178,12 +213,25 @@ export function simulationTick(sim: Simulation): Simulation {
       type: 'warning',
     });
   }
-  if (newViability < 50 && prev.viability >= 50) {
+  if (newState.viability < 50 && prev.viability >= 50) {
     events.push({
       tick: newTick,
       timeHours: newTimeHours,
-      message: 'Viability dropped below 50% (simulated)',
+      message: 'Viability dropped below 50% (simulated educational estimate)',
       type: 'warning',
+    });
+  }
+  if (
+    newState.cellMovement !== null
+    && prev.cellMovement !== null
+    && newState.cellMovement < 50
+    && prev.cellMovement >= 50
+  ) {
+    events.push({
+      tick: newTick,
+      timeHours: newTimeHours,
+      message: 'Cell movement index dropped below 50% (simulated educational estimate — not inferred from viability)',
+      type: 'change',
     });
   }
   if (newPopulation > prev.population * 2 && newTick > 4) {
@@ -243,6 +291,7 @@ export function resetSimulation(sim: Simulation): Simulation {
       seed: sim.seed,
       variabilityEnabled: sim.variabilityEnabled,
       conditionId: sim.conditionId,
+      therapeuticTreatment: sim.therapeuticTreatment,
     }),
     id: sim.id,
     speed: sim.speed,
