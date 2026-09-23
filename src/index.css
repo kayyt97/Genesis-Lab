@@ -2224,3 +2224,136 @@ input[type="range"] {
     grid-template-columns: 1fr;
   }
 }
+
+/* Tumour-cell educational metrics (Virtual Lab) */
+.tumour-metrics-panel {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.tumour-metrics-heading {
+  font-size: 15px;
+  margin: 0 0 8px;
+}
+
+.tumour-metrics-disclaimer {
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.tumour-treatment-banner {
+  font-size: 13px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  background: rgba(79, 195, 247, 0.08);
+  border: 1px solid rgba(79, 195, 247, 0.25);
+  border-radius: var(--radius);
+}
+
+.tumour-metric-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.tumour-metric-card {
+  padding: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+}
+
+.tumour-metric-card h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.tumour-metric-dl {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.tumour-metric-dl div {
+  display: grid;
+  gap: 2px;
+}
+
+.tumour-metric-dl dt {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.tumour-metric-dl dd {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.tumour-metric-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+}
+
+.tumour-charts-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.tumour-comparison-report {
+  font-size: 13px;
+}
+
+.tumour-comparison-report summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.tumour-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin: 12px 0;
+}
+
+.tumour-report-table th,
+.tumour-report-table td {
+  border: 1px solid var(--border-subtle);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.tumour-report-table th {
+  background: var(--bg-primary);
+}
+
+.chart-legend {
+  font-size: 11px;
+  margin: 4px 0 0;
+}
+
+.item-meta-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .tumour-metric-cards,
+  .tumour-charts-row {
+    grid-template-columns: 1fr;
+  }
+
+  .tumour-report-table {
+    display: block;
+    overflow-x: auto;
+  }
+}

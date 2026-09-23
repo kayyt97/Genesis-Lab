@@ -17,6 +17,7 @@ import { ExperimentCompositionPanel } from '../components/lab/ExperimentComposit
 import { ControlExperimentPanel } from '../components/lab/ControlExperimentPanel';
 import { CultureVisualisation } from '../components/lab/CultureVisualisation';
 import { ScientificReportPanel } from '../components/lab/ScientificReportPanel';
+import { TumourMetricsPanel } from '../components/lab/TumourMetricsPanel';
 import { forecastViability } from '../services/viabilityForecast';
 import { runExperimentalDesignCheck, generateAutoControlEnvironment } from '../services/designCheck';
 import { useAppState, sendToMicroscope } from '../store/AppContext';
@@ -29,6 +30,8 @@ import {
   environmentFromSetup,
   inferMoleculeRole,
   createDefaultControl,
+  attachTherapeuticToSetup,
+  isTherapeuticDesignId,
 } from '../services/experimentWorkspaceService';
 import { getSimulationProfile, assertSimulationAllowed } from '../services/organismSimulationProfile';
 import { buildScientificReport } from '../services/reportGenerator';
@@ -43,8 +46,11 @@ import {
   updateSimulationEnvironment,
   formatPopulation,
 } from '../simulation/engine';
-import type { EnvironmentConditions } from '../types';
-import type { ReportLanguageLevel, MoleculeTransferRole } from '../types/experimentWorkspace';
+import { deriveTumourExperimentSeed, isTumourCellModel } from '../services/tumourCellSimulation';
+import { THERAPEUTIC_INTENDED_OUTCOME_LABELS } from '../types/scientific';
+import type { EnvironmentConditions, TherapeuticTreatmentConfig } from '../types';
+import type { ActiveExperimentSetup, ReportLanguageLevel, MoleculeTransferRole } from '../types/experimentWorkspace';
+import type { TherapeuticDesign } from '../types/scientific';
 
 const ENV_LABELS: { key: keyof EnvironmentConditions; label: string; unit: string; min: number; max: number; step: number; glossary?: string }[] = [
   { key: 'temperature', label: 'Temperature', unit: '°C', min: 0, max: 80, step: 0.5, glossary: 'temperature' },
@@ -67,10 +73,31 @@ const ROLE_OPTIONS: { value: MoleculeTransferRole; label: string }[] = [
   { value: 'sample-component', label: 'Sample component' },
 ];
 
+function pairedSimulations(
+  setup: ActiveExperimentSetup,
+  treatment: TherapeuticTreatmentConfig | null | undefined,
+) {
+  const seed = setup.simulationSeed
+    ?? deriveTumourExperimentSeed(treatment?.designId, setup.catalogueEntryId);
+  const expEnv = environmentFromSetup(setup);
+  const experimental = createSimulation(setup.catalogueEntryId, expEnv, undefined, {
+    seed,
+    therapeuticTreatment: treatment ?? undefined,
+  });
+  const control = createSimulation(setup.catalogueEntryId, setup.control.environment, undefined, {
+    seed,
+    conditionId: setup.control.sampleId,
+    // Control is always untreated
+  });
+  return { experimental, control, seed };
+}
+
 export function VirtualLabPage() {
   const { state, dispatch } = useAppState();
   const navigate = useNavigate();
-  const [selectedCatalogueId, setSelectedCatalogueId] = useState('ORG-ECOLI');
+  const [selectedCatalogueId, setSelectedCatalogueId] = useState(
+    () => state.activeExperimentSetup?.catalogueEntryId ?? 'ORG-ECOLI',
+  );
   const [scrubTime, setScrubTime] = useState<number | null>(null);
   const [showDesignCheck, setShowDesignCheck] = useState(false);
   const [showReport, setShowReport] = useState(() => !!state.reportDraft);
@@ -85,6 +112,7 @@ export function VirtualLabPage() {
   const catalogueEntry = organismIndex.getById(selectedCatalogueId);
   const profile = getSimulationProfile(selectedCatalogueId);
   const controlActive = setup?.control?.mode !== 'none-not-applicable';
+  const attachedTherapeutic = setup?.attachedTherapeutic ?? null;
 
   const displayState = scrubTime !== null && sim
     ? sim.snapshots.find((s) => s.timeHours === scrubTime)?.organismState ?? sim.organismState
@@ -126,21 +154,33 @@ export function VirtualLabPage() {
     [env, controlEnv, controlActive, state.settings.replicateCount],
   );
 
-  const initFromCatalogue = useCallback((entry: OrganismCatalogueEntry) => {
+  const applySetupSims = useCallback((nextSetup: ActiveExperimentSetup) => {
+    const { experimental, control, seed } = pairedSimulations(nextSetup, nextSetup.attachedTherapeutic);
+    const withSeed = nextSetup.simulationSeed === seed
+      ? nextSetup
+      : { ...nextSetup, simulationSeed: seed };
+    if (withSeed !== nextSetup) {
+      dispatch({ type: 'SET_EXPERIMENT_SETUP', payload: withSeed });
+    } else {
+      dispatch({ type: 'SET_EXPERIMENT_SETUP', payload: nextSetup });
+    }
+    dispatch({ type: 'SET_SIMULATION', payload: experimental });
+    dispatch({ type: 'SET_CONTROL_SIMULATION', payload: control });
+  }, [dispatch]);
+
+  const initFromCatalogue = useCallback((entry: OrganismCatalogueEntry, therapeutic?: TherapeuticDesign | null) => {
     const allowed = assertSimulationAllowed(entry.id);
     if (!allowed.ok) {
       setActionFeedback(allowed.reason);
       return;
     }
-    const experimentSetup = createExperimentSetup(entry);
-    const modelEnv = environmentFromSetup(experimentSetup);
-    dispatch({ type: 'SET_EXPERIMENT_SETUP', payload: experimentSetup });
-    dispatch({ type: 'SET_SIMULATION', payload: createSimulation(entry.id, modelEnv) });
-    dispatch({
-      type: 'SET_CONTROL_SIMULATION',
-      payload: createSimulation(entry.id, experimentSetup.control.environment, undefined, { conditionId: experimentSetup.control.sampleId }),
-    });
-  }, [dispatch]);
+    let experimentSetup = createExperimentSetup(entry);
+    if (therapeutic) {
+      experimentSetup = attachTherapeuticToSetup(experimentSetup, therapeutic);
+    }
+    setSelectedCatalogueId(entry.id);
+    applySetupSims(experimentSetup);
+  }, [applySetupSims]);
 
   useEffect(() => {
     if (setup?.catalogueEntryId) setSelectedCatalogueId(setup.catalogueEntryId);
@@ -155,16 +195,25 @@ export function VirtualLabPage() {
       return;
     }
     if (!sim) {
-      dispatch({ type: 'SET_SIMULATION', payload: createSimulation(setup.catalogueEntryId, environmentFromSetup(setup)) });
+      const { experimental, control } = pairedSimulations(setup, setup.attachedTherapeutic);
+      dispatch({ type: 'SET_SIMULATION', payload: experimental });
+      if (!controlSim && setup.control.mode !== 'none-not-applicable') {
+        dispatch({ type: 'SET_CONTROL_SIMULATION', payload: control });
+      }
     }
-  }, [setup, sim, catalogueEntry, initFromCatalogue, dispatch]);
+  }, [setup, sim, catalogueEntry, initFromCatalogue, dispatch, controlSim]);
 
   useEffect(() => {
     if (!setup?.control || controlSim) return;
     if (setup.control.mode === 'none-not-applicable') return;
+    const seed = setup.simulationSeed
+      ?? deriveTumourExperimentSeed(setup.attachedTherapeutic?.designId, setup.catalogueEntryId);
     dispatch({
       type: 'SET_CONTROL_SIMULATION',
-      payload: createSimulation(setup.catalogueEntryId, setup.control.environment, undefined, { conditionId: setup.control.sampleId }),
+      payload: createSimulation(setup.catalogueEntryId, setup.control.environment, undefined, {
+        seed,
+        conditionId: setup.control.sampleId,
+      }),
     });
   }, [setup, controlSim, dispatch]);
 
@@ -176,7 +225,7 @@ export function VirtualLabPage() {
 
   useEffect(() => {
     if (!handoff || handoff.targetModule !== 'Virtual Lab') return;
-    // Organism catalogue handoff — select sample, do not open molecule role picker
+
     if (handoff.entityId.startsWith('ORG-')) {
       const entry = organismIndex.getById(handoff.entityId);
       if (entry) {
@@ -186,24 +235,84 @@ export function VirtualLabPage() {
           dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
           return;
         }
-        setSelectedCatalogueId(entry.id);
         initFromCatalogue(entry);
       }
       dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
       setPendingRole(null);
       return;
     }
-    if (handoff.type !== 'molecule' && handoff.type !== 'therapeutic') return;
+
     if (handoff.type === 'therapeutic') {
-      // Therapeutic designs attach as conceptual treatment context
-      setPendingRole('treatment');
+      const design = state.therapeuticDesigns.find((d) => d.id === handoff.entityId);
+      if (!design) {
+        setActionFeedback('Therapeutic design not found in saved designs.');
+        dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
+        return;
+      }
+
+      const targetId = design.targetCellModelId;
+      if (targetId) {
+        const entry = organismIndex.getById(targetId);
+        if (entry) {
+          const allowed = assertSimulationAllowed(entry.id);
+          if (!allowed.ok) {
+            setActionFeedback(allowed.reason);
+            dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
+            return;
+          }
+          initFromCatalogue(entry, design);
+          setActionFeedback(
+            `Loaded ${entry.name} with conceptual treatment “${design.name}” (${THERAPEUTIC_INTENDED_OUTCOME_LABELS[design.intendedOutcome ?? 'growth-suppression']}). Control is untreated. Design settings drive the educational model — pH is not changed by this handoff.`,
+          );
+          dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
+          setPendingRole(null);
+          return;
+        }
+      }
+
+      if (setup) {
+        const updated = attachTherapeuticToSetup(setup, design);
+        applySetupSims(updated);
+        setActionFeedback(
+          `Attached conceptual treatment “${design.name}”. Control remains untreated. Design settings are linked to the experimental dish (no pH shortcut).`,
+        );
+        dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
+        setPendingRole(null);
+        return;
+      }
+
+      // No sample yet — default to HeLa for tumour-cell designs, else ask user to pick
+      const fallback = organismIndex.getById('ORG-HELA');
+      if (fallback && design.targetType === 'tumour-cell') {
+        initFromCatalogue(fallback, design);
+        setActionFeedback(`Loaded HeLa with conceptual treatment “${design.name}”. Select another cell model if needed.`);
+        dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
+        setPendingRole(null);
+        return;
+      }
+
+      setActionFeedback('Select a biological sample first, then re-send the therapeutic design.');
+      dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
       return;
     }
+
+    if (handoff.type !== 'molecule') return;
     setPendingRole(handoff.moleculeRole ?? inferMoleculeRole(handoff.entityId, handoff.label));
-  }, [handoff, dispatch, initFromCatalogue]);
+  }, [handoff, dispatch, initFromCatalogue, setup, state.therapeuticDesigns, applySetupSims]);
 
   const applyHandoffMolecule = (role: MoleculeTransferRole) => {
     if (!handoff || !setup) return;
+    // Guard: therapeutic ids should not go through molecule pH path
+    if (isTherapeuticDesignId(handoff.entityId) && role === 'treatment') {
+      const design = state.therapeuticDesigns.find((d) => d.id === handoff.entityId);
+      if (design) {
+        const updated = attachTherapeuticToSetup(setup, design);
+        applySetupSims(updated);
+        dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
+        setPendingRole(null);
+        return;
+      }
+    }
     const updated = applyMoleculeToSetup(setup, { id: handoff.entityId, name: handoff.label, formula: handoff.formula ?? '' }, role);
     dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: updated });
     if (sim) dispatch({ type: 'SET_SIMULATION', payload: updateSimulationEnvironment(sim, environmentFromSetup(updated)) });
@@ -213,7 +322,11 @@ export function VirtualLabPage() {
 
   const handleSelectOrganism = (entry: OrganismCatalogueEntry) => {
     setSelectedCatalogueId(entry.id);
-    initFromCatalogue(entry);
+    // Preserve attached therapeutic when switching among tumour models if target matches or unset
+    const keepTherapeutic = setup?.attachedTherapeutic && isTumourCellModel(entry.id)
+      ? state.therapeuticDesigns.find((d) => d.id === setup.attachedTherapeutic?.designId)
+      : null;
+    initFromCatalogue(entry, keepTherapeutic ?? null);
   };
 
   const handleStart = () => {
@@ -272,18 +385,19 @@ export function VirtualLabPage() {
   const handleUseBaselineControl = () => {
     if (!setup || !catalogueEntry) return;
     const control = createDefaultControl(catalogueEntry, setup.control.sampleId, defaultEnvironment);
-    dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: { ...setup, control: { ...control, mode: 'auto-baseline' }, updatedAt: new Date().toISOString() } });
-    dispatch({ type: 'SET_CONTROL_SIMULATION', payload: createSimulation(catalogueEntry.id, control.environment, undefined, { conditionId: control.sampleId }) });
+    const next = { ...setup, control: { ...control, mode: 'auto-baseline' as const }, updatedAt: new Date().toISOString() };
+    applySetupSims(next);
   };
 
   const handleControlMode = (mode: NonNullable<typeof setup>['control']['mode'], reason?: string) => {
     if (!setup || !catalogueEntry) return;
     const control = { ...setup.control, mode, reason, environment: mode === 'custom' ? setup.environment : setup.control.environment, updatedAt: new Date().toISOString() };
-    dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: { ...setup, control, updatedAt: new Date().toISOString() } });
-    if (mode !== 'none-not-applicable') {
-      dispatch({ type: 'SET_CONTROL_SIMULATION', payload: createSimulation(catalogueEntry.id, control.environment, undefined, { conditionId: control.sampleId }) });
-    } else {
+    const next = { ...setup, control, updatedAt: new Date().toISOString() };
+    if (mode === 'none-not-applicable') {
+      dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: next });
       dispatch({ type: 'SET_CONTROL_SIMULATION', payload: null });
+    } else {
+      applySetupSims(next);
     }
   };
 
@@ -313,7 +427,12 @@ export function VirtualLabPage() {
 
   const viabilityData = sim?.snapshots.map((s) => ({ x: s.timeHours, y: s.organismState.viability })) ?? [];
   const populationData = sim?.snapshots.map((s) => ({ x: s.timeHours, y: s.organismState.population / 1e6 })) ?? [];
-  const hasTreatment = setup?.transferredMolecules.some((m) => m.role === 'treatment') ?? false;
+  const hasTreatment = (setup?.transferredMolecules.some((m) => m.role === 'treatment') ?? false)
+    || !!attachedTherapeutic;
+
+  const controlSummary = setup?.control
+    ? `${setup.control.displayName}; T ${setup.control.environment.temperature}°C, pH ${setup.control.environment.ph}, O₂ ${setup.control.environment.oxygen}%; untreated`
+    : 'No control';
 
   return (
     <div className="virtual-lab">
@@ -323,12 +442,12 @@ export function VirtualLabPage() {
         title="Understanding the Virtual Lab"
         whatIsThis={EXPLAIN.virtualLab.whatIsIt}
         whyUseIt={EXPLAIN.virtualLab.whyItMatters ?? ''}
-        whatCanILearn="How environment, treatments, and controls affect modelled viability and population over simulated time."
+        whatCanILearn="How environment, treatments, and controls affect modelled viability, population, and (for tumour cell lines) movement and proliferation over simulated time."
         caveat={EXPLAIN.virtualLab.whatItDoesNotMean}
       />
 
       {handoff && handoff.targetModule === 'Virtual Lab' && pendingRole && (
-        <div className="handoff-banner">
+        <div className="handoff-banner" role="region" aria-label="Import molecule role picker">
           <p>Import <strong>{handoff.label}</strong> from {handoff.sourceModule}. Choose its role:</p>
           <div className="handoff-role-picker">
             {ROLE_OPTIONS.map((opt) => (
@@ -372,7 +491,7 @@ export function VirtualLabPage() {
                 </div>
               )}
             </div>
-            <div className="env-readout">
+            <div className="env-readout" aria-label="Environment readout">
               {sim && (
                 <>
                   <span>T: {sim.environment.temperature}°C</span>
@@ -400,6 +519,13 @@ export function VirtualLabPage() {
                 setup={setup}
                 controlConfigured={controlActive && controlSim !== null}
               />
+              {attachedTherapeutic && (
+                <p className="text-muted" role="status">
+                  Attached therapeutic: {attachedTherapeutic.designName} (
+                  {THERAPEUTIC_INTENDED_OUTCOME_LABELS[attachedTherapeutic.intendedOutcome]})
+                  — experimental dish only
+                </p>
+              )}
             </details>
           )}
 
@@ -452,7 +578,7 @@ export function VirtualLabPage() {
             }} />
             Enable experimental variability (seeded, reproducible)
           </label>
-          {sim?.seed !== undefined && <p className="text-muted">Simulation seed: {sim.seed}</p>}
+          {sim?.seed !== undefined && <p className="text-muted">Simulation seed: {sim.seed} (matched experimental + control)</p>}
           <label className="checkbox-label">
             <input type="checkbox" checked={state.settings.autoControlEnabled} onChange={(e) => dispatch({ type: 'UPDATE_SETTINGS', payload: { autoControlEnabled: e.target.checked } })} />
             Auto-control: matched control environment proposed
@@ -488,7 +614,7 @@ export function VirtualLabPage() {
           )}
           <label className="checkbox-label">
             Replicates: {state.settings.replicateCount}
-            <input type="range" min="1" max="5" step="1" value={state.settings.replicateCount} onChange={(e) => dispatch({ type: 'UPDATE_SETTINGS', payload: { replicateCount: parseInt(e.target.value, 10) } })} />
+            <input type="range" min="1" max="5" step="1" value={state.settings.replicateCount} onChange={(e) => dispatch({ type: 'UPDATE_SETTINGS', payload: { replicateCount: parseInt(e.target.value, 10) } })} aria-label="Replicate count" />
           </label>
           <div className="lab-handoff-actions">
             <Button variant="secondary" onClick={() => {
@@ -512,7 +638,7 @@ export function VirtualLabPage() {
               <input type="range" min="0.25" max="8" step="0.25" value={sim?.speed ?? 1} onChange={(e) => {
                 if (!sim) return;
                 dispatch({ type: 'SET_SIMULATION', payload: setSimulationSpeed(sim, parseFloat(e.target.value)) });
-              }} />
+              }} aria-label="Simulation speed" />
             </label>
           </div>
         </Card>
@@ -528,7 +654,15 @@ export function VirtualLabPage() {
                   </span>
                   <span className="env-value">{sim?.environment[key] ?? defaultEnvironment[key]}{unit}</span>
                 </label>
-                <input type="range" min={min} max={max} step={step} value={sim?.environment[key] ?? defaultEnvironment[key]} onChange={(e) => handleEnvChange(key, parseFloat(e.target.value))} />
+                <input
+                  type="range"
+                  min={min}
+                  max={max}
+                  step={step}
+                  value={sim?.environment[key] ?? defaultEnvironment[key]}
+                  onChange={(e) => handleEnvChange(key, parseFloat(e.target.value))}
+                  aria-label={label}
+                />
               </div>
             ))}
           </div>
@@ -556,6 +690,19 @@ export function VirtualLabPage() {
                 <Metric label="Control population" value={formatPopulation(controlDisplayState.population)} />
               </div>
             </div>
+          )}
+          {isTumourCellModel(selectedCatalogueId) && (
+            <TumourMetricsPanel
+              organismId={selectedCatalogueId}
+              organismName={catalogueEntry?.name ?? selectedCatalogueId}
+              experimental={displayState}
+              control={controlDisplayState}
+              experimentalSim={sim}
+              controlSim={controlSim}
+              treatment={attachedTherapeutic ?? sim?.therapeuticTreatment}
+              seed={setup?.simulationSeed ?? sim?.seed}
+              controlSummary={controlSummary}
+            />
           )}
         </Card>
 

@@ -136,6 +136,12 @@ export interface OrganismSimulationState {
   stress: number; // 0-100
   mutationIndicator: number; // 0-100 (educational indicator)
   environmentalTolerance: number; // 0-100
+  /**
+   * Tumour-cell educational metrics (0–100).
+   * null = not measured for this organism / outcome (never invent a value).
+   */
+  cellMovement: number | null;
+  proliferation: number | null;
 }
 
 export interface SimulationEvent {
@@ -150,6 +156,15 @@ export interface SimulationSnapshot {
   timeHours: number;
   organismState: OrganismSimulationState;
   environment: EnvironmentConditions;
+}
+
+/** Attached conceptual therapeutic treatment (experimental dish only) */
+export interface TherapeuticTreatmentConfig {
+  designId: string;
+  designName: string;
+  intendedOutcome: import('./scientific').TherapeuticIntendedOutcome;
+  targetCellModelId?: string;
+  variables: import('./scientific').TherapeuticDesign['variables'];
 }
 
 export interface Simulation {
@@ -170,6 +185,8 @@ export interface Simulation {
   seed?: number;
   variabilityEnabled?: boolean;
   conditionId?: string;
+  /** Present only on experimental condition when a therapeutic design is attached */
+  therapeuticTreatment?: TherapeuticTreatmentConfig;
 }
 
 export interface SimulationResult {

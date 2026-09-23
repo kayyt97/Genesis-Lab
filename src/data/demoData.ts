@@ -292,6 +292,8 @@ export const demoSimulationResults: SimulationResult[] = [
       stress: 8,
       mutationIndicator: 2,
       environmentalTolerance: 88,
+      cellMovement: null,
+      proliferation: null,
     },
     timeline: [],
     events: [

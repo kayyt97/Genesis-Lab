@@ -1,8 +1,14 @@
 import type { ActiveExperimentSetup, ControlConfiguration, ReportLanguageLevel, ScientificReport, TransferredMolecule } from '../types/experimentWorkspace';
 import type { EnvironmentConditions, Simulation } from '../types';
 import type { ResearchProject } from '../types/scientific';
+import { THERAPEUTIC_INTENDED_OUTCOME_LABELS } from '../types/scientific';
 import { biologicalSystemTypeLabel } from './organismSimulationProfile';
 import { formatPopulation } from '../simulation/engine';
+import {
+  SIMULATED_ESTIMATE_LABEL,
+  buildComparisonRows,
+  isTumourCellModel,
+} from './tumourCellSimulation';
 
 export const GENESIS_LAB_VERSION = '0.5.0-phase5';
 
@@ -39,15 +45,17 @@ export function buildScientificReport(
     section('control', t('Control setup', reportLevel), formatControlDetail(setup.control, reportLevel), setup.control.mode === 'none-not-applicable' ? 'user-entered' : 'imported'),
     section('variables', t('Independent / dependent variables', reportLevel), describeVariables(setup, reportLevel), 'user-entered'),
     section('environment', t('Environmental conditions', reportLevel), formatEnvironment(setup.environment, reportLevel), 'user-entered'),
-    section('treatments', t('Treatments / additions', reportLevel), formatTreatments(setup.transferredMolecules, reportLevel), 'user-entered'),
+    section('treatments', t('Treatments / additions', reportLevel), formatTreatments(setup.transferredMolecules, setup, reportLevel), 'user-entered'),
+    section('therapeutic', t('Conceptual therapeutic', reportLevel), formatTherapeutic(setup, reportLevel), setup.attachedTherapeutic ? 'imported' : 'not-recorded'),
     section('method', t('Method summary', reportLevel), formatMethod(setup, experimentalSim, reportLevel), 'reference'),
     section('duration', t('Duration', reportLevel), experimentalSim ? `${experimentalSim.timeHours.toFixed(1)} simulated hours` : 'Not recorded', experimentalSim ? 'model-generated' : 'not-recorded'),
-    section('results', t('Results', reportLevel), formatResults(expState, experimentalSim, reportLevel), expState ? 'model-generated' : 'not-recorded'),
-    section('measurements', t('Key measurements', reportLevel), formatMeasurements(expState, ctrlState, reportLevel), expState ? 'model-generated' : 'not-recorded'),
+    section('results', t('Results', reportLevel), formatResults(expState, experimentalSim, setup, reportLevel), expState ? 'model-generated' : 'not-recorded'),
+    section('measurements', t('Key measurements', reportLevel), formatMeasurements(expState, ctrlState, setup, reportLevel), expState ? 'model-generated' : 'not-recorded'),
+    section('tumour-comparison', t('Tumour-cell metric comparison', reportLevel), formatTumourComparison(setup, experimentalSim, controlSim, reportLevel), isTumourCellModel(setup.catalogueEntryId) && expState ? 'model-generated' : 'not-recorded'),
     section('control-comparison', t('Experimental vs control comparison', reportLevel), comparison.summary, comparison.source),
     section('observations', t('Observations', reportLevel), formatObservations(experimentalSim, reportLevel), experimentalSim?.events.length ? 'model-generated' : 'not-recorded'),
     section('interpretation', t('Interpretation', reportLevel), formatInterpretation(comparison, setup, reportLevel), comparison.source === 'not-recorded' ? 'not-recorded' : 'model-generated'),
-    section('limitations', t('Limitations', reportLevel), formatLimitations(reportLevel), 'reference'),
+    section('limitations', t('Limitations', reportLevel), formatLimitations(setup, reportLevel), 'reference'),
     section('conclusion', t('Conclusion', reportLevel), 'Not recorded — edit before export.', 'not-recorded'),
     section('provenance', t('Provenance', reportLevel), formatProvenance(setup, experimentalSim, reportLevel), 'imported'),
     section('disclaimer', t('Educational / simulation disclaimer', reportLevel), formatDisclaimer(reportLevel), 'reference'),
@@ -109,23 +117,50 @@ function listByRole(molecules: TransferredMolecule[], role: TransferredMolecule[
   return molecules.filter((m) => m.role === role).map((m) => m.name).join(', ');
 }
 
-function formatTreatments(molecules: TransferredMolecule[], level: ReportLanguageLevel): string {
+function formatTreatments(
+  molecules: TransferredMolecule[],
+  setup: ActiveExperimentSetup,
+  level: ReportLanguageLevel,
+): string {
   const treatments = listByRole(molecules, 'treatment');
   const nutrients = listByRole(molecules, 'nutrient');
   const added = listByRole(molecules, 'sample-component');
-  if (!treatments && !nutrients && !added) return 'None recorded';
+  if (!treatments && !nutrients && !added && !setup.attachedTherapeutic) return 'None recorded';
   if (level === 'simple') {
     const parts: string[] = [];
-    if (treatments) parts.push(`Treatment added: ${treatments}`);
+    if (setup.attachedTherapeutic) {
+      parts.push(`Conceptual therapeutic: ${setup.attachedTherapeutic.designName} (control untreated)`);
+    } else if (treatments) {
+      parts.push(`Treatment added: ${treatments}`);
+    }
     if (nutrients) parts.push(`Nutrients: ${nutrients}`);
     if (added) parts.push(`Sample components: ${added}`);
     return parts.join('. ');
   }
   const parts: string[] = [];
+  if (setup.attachedTherapeutic) {
+    parts.push(
+      `Conceptual therapeutic: ${setup.attachedTherapeutic.designName} [${THERAPEUTIC_INTENDED_OUTCOME_LABELS[setup.attachedTherapeutic.intendedOutcome]}]; experimental dish only`,
+    );
+  }
   if (treatments) parts.push(`Treatments: ${treatments}`);
   if (nutrients) parts.push(`Nutrients: ${nutrients}`);
   if (added) parts.push(`Added: ${added}`);
   return parts.join('; ') || 'None recorded';
+}
+
+function formatTherapeutic(setup: ActiveExperimentSetup, level: ReportLanguageLevel): string {
+  const t = setup.attachedTherapeutic;
+  if (!t) return 'Not recorded';
+  const outcome = THERAPEUTIC_INTENDED_OUTCOME_LABELS[t.intendedOutcome];
+  if (level === 'simple') {
+    return `Design “${t.designName}” aiming to ${outcome.toLowerCase()}. Control has no treatment. Educational model only.`;
+  }
+  if (level === 'technical') {
+    const v = t.variables;
+    return `designId=${t.designId}; name=${t.designName}; outcome=${t.intendedOutcome}; targetCell=${t.targetCellModelId ?? 'n/a'}; uptake=${v.uptake}; therapeuticEffect=${v.therapeuticEffect}; targetingPreference=${v.targetingPreference}; seed=${setup.simulationSeed ?? 'n/a'}`;
+  }
+  return `“${t.designName}” — intended outcome: ${outcome}. Linked to experimental dish; matched control untreated. Settings drive educational estimates (not real efficacy).`;
 }
 
 function formatEnvironment(env: EnvironmentConditions, level: ReportLanguageLevel): string {
@@ -138,8 +173,10 @@ function formatEnvironment(env: EnvironmentConditions, level: ReportLanguageLeve
 }
 
 function describeVariables(setup: ActiveExperimentSetup, level: ReportLanguageLevel): string {
-  const independent = ['temperature', 'pH', 'oxygen', 'nutrients', 'treatments'].join(', ');
-  const dependent = 'viability, population, stress (model outputs)';
+  const independent = ['temperature', 'pH', 'oxygen', 'nutrients', 'treatments', 'conceptual therapeutic'].join(', ');
+  const dependent = isTumourCellModel(setup.catalogueEntryId)
+    ? 'cell movement, proliferation, viability, population, stress (model outputs)'
+    : 'viability, population, stress (model outputs)';
   if (level === 'simple') return `What we changed (independent): environment and any treatments. What we measured (dependent): how well the sample survived and grew in the model.`;
   if (level === 'technical') return `Independent: ${independent}; sample=${setup.sampleId}; Dependent: ${dependent}; control=${setup.control.sampleId}`;
   return `Independent: environmental parameters and treatments; Dependent: ${dependent}; Sample: ${setup.sampleDisplayName}`;
@@ -148,7 +185,7 @@ function describeVariables(setup: ActiveExperimentSetup, level: ReportLanguageLe
 function formatMethod(setup: ActiveExperimentSetup, sim: Simulation | null, level: ReportLanguageLevel): string {
   if (level === 'simple') return `Educational computer simulation in Genesis Lab. The model applies simplified rules — not a real wet-lab protocol.`;
   if (level === 'technical') {
-    return `Genesis Lab educational simulation (${GENESIS_LAB_VERSION}); organismId=${setup.catalogueEntryId}; seed=${sim?.seed ?? 'n/a'}; variability=${sim?.variabilityEnabled ?? false}; speed=${sim?.speed ?? 1}×`;
+    return `Genesis Lab educational simulation (${GENESIS_LAB_VERSION}); organismId=${setup.catalogueEntryId}; seed=${sim?.seed ?? setup.simulationSeed ?? 'n/a'}; variability=${sim?.variabilityEnabled ?? false}; speed=${sim?.speed ?? 1}×; therapeutic=${setup.attachedTherapeutic?.designId ?? 'none'}`;
   }
   return `Educational simulation using Genesis Lab model (${GENESIS_LAB_VERSION}). Prototype rules — not validated physical or biological methodology.`;
 }
@@ -156,29 +193,72 @@ function formatMethod(setup: ActiveExperimentSetup, sim: Simulation | null, leve
 function formatResults(
   expState: Simulation['organismState'] | undefined,
   sim: Simulation | null,
+  setup: ActiveExperimentSetup,
   level: ReportLanguageLevel,
 ): string {
   if (!expState || !sim) return 'Not recorded';
-  if (level === 'simple') return `After ${sim.timeHours.toFixed(1)} simulated hours, viability was ${expState.viability.toFixed(1)}% and the modelled population was ${formatPopulation(expState.population)}.`;
-  return `At ${sim.timeHours.toFixed(1)} h: viability ${expState.viability.toFixed(1)}%; population ${formatPopulation(expState.population)}; stress ${expState.stress.toFixed(1)}%`;
+  const label = `(${SIMULATED_ESTIMATE_LABEL})`;
+  if (level === 'simple') {
+    return `After ${sim.timeHours.toFixed(1)} simulated hours, viability was ${expState.viability.toFixed(1)}% ${label} and the modelled population was ${formatPopulation(expState.population)}.`;
+  }
+  const parts = [
+    `At ${sim.timeHours.toFixed(1)} h: viability ${expState.viability.toFixed(1)}% ${label}`,
+    `population ${formatPopulation(expState.population)}`,
+    `stress ${expState.stress.toFixed(1)}%`,
+  ];
+  if (isTumourCellModel(setup.catalogueEntryId)) {
+    parts.push(
+      `cell movement ${expState.cellMovement === null ? 'not measured' : `${expState.cellMovement.toFixed(1)}% ${label}`}`,
+      `proliferation ${expState.proliferation === null ? 'not measured' : `${expState.proliferation.toFixed(1)}% ${label}`}`,
+    );
+  }
+  return parts.join('; ');
 }
 
 function formatMeasurements(
   expState: Simulation['organismState'] | undefined,
   ctrlState: Simulation['organismState'] | undefined,
+  setup: ActiveExperimentSetup,
   level: ReportLanguageLevel,
 ): string {
   if (!expState) return 'Not recorded';
+  const label = SIMULATED_ESTIMATE_LABEL;
   const lines = [
-    `Viability ${expState.viability.toFixed(1)}%`,
+    `Viability ${expState.viability.toFixed(1)}% (${label})`,
     `Population ${formatPopulation(expState.population)}`,
     `Replication ${expState.replicationRate.toFixed(3)}/h`,
     `Stress ${expState.stress.toFixed(1)}%`,
   ];
-  if (ctrlState) lines.push(`Control viability ${ctrlState.viability.toFixed(1)}%`);
+  if (isTumourCellModel(setup.catalogueEntryId)) {
+    lines.push(
+      `Cell movement ${expState.cellMovement === null ? 'not measured' : `${expState.cellMovement.toFixed(1)}% (${label})`}`,
+      `Proliferation ${expState.proliferation === null ? 'not measured' : `${expState.proliferation.toFixed(1)}% (${label})`}`,
+    );
+  }
+  if (ctrlState) lines.push(`Control viability ${ctrlState.viability.toFixed(1)}% (${label})`);
   if (level === 'simple') return `Main readings: ${lines.slice(0, 2).join('; ')}.`;
   if (level === 'technical') return lines.join('; ') + `; mutation indicator ${expState.mutationIndicator.toFixed(2)}%; tolerance ${expState.environmentalTolerance.toFixed(1)}%`;
   return lines.join('; ');
+}
+
+function formatTumourComparison(
+  setup: ActiveExperimentSetup,
+  expSim: Simulation | null,
+  ctrlSim: Simulation | null,
+  _level: ReportLanguageLevel,
+): string {
+  if (!isTumourCellModel(setup.catalogueEntryId) || !expSim?.organismState) {
+    return 'not measured — sample is not a simulation-ready tumour cell model';
+  }
+  const rows = buildComparisonRows(
+    expSim.organismState,
+    ctrlSim?.organismState ?? null,
+    setup.catalogueEntryId,
+    setup.attachedTherapeutic?.intendedOutcome,
+  );
+  return rows
+    .map((r) => `${r.metric}: exp ${r.experimental}; ctrl ${r.control}; Δ ${r.percentDifference}${r.note ? ` (${r.note})` : ''}`)
+    .join(' | ');
 }
 
 function computeComparison(
@@ -198,7 +278,7 @@ function computeComparison(
 
   if (level === 'simple') {
     return {
-      summary: `Experimental viability ${exp.viability.toFixed(1)}% vs control ${ctrl.viability.toFixed(1)}% — a difference of ${deltaV >= 0 ? '+' : ''}${deltaV.toFixed(1)} percentage points (${pctV >= 0 ? '+' : ''}${pctV.toFixed(1)}% relative change).`,
+      summary: `Experimental viability ${exp.viability.toFixed(1)}% vs control ${ctrl.viability.toFixed(1)}% — a difference of ${deltaV >= 0 ? '+' : ''}${deltaV.toFixed(1)} percentage points (${pctV >= 0 ? '+' : ''}${pctV.toFixed(1)}% relative change). All values are ${SIMULATED_ESTIMATE_LABEL}s.`,
       source: 'model-generated',
     };
   }
@@ -209,6 +289,7 @@ function computeComparison(
       `Δviability ${deltaV >= 0 ? '+' : ''}${deltaV.toFixed(2)} pp (${pctV >= 0 ? '+' : ''}${pctV.toFixed(2)}%)`,
       `Δpopulation ${popDelta >= 0 ? '+' : ''}${formatPopulation(Math.abs(popDelta))} (${popPct >= 0 ? '+' : ''}${popPct.toFixed(2)}%)`,
       `t=${expSim.timeHours.toFixed(2)} h`,
+      `seed=${expSim.seed ?? 'n/a'}`,
     ];
     if (expStart && ctrlStart) {
       parts.push(`viability change exp ${(exp.viability - expStart.viability).toFixed(2)} pp`, `ctrl ${(ctrl.viability - ctrlStart.viability).toFixed(2)} pp`);
@@ -216,7 +297,7 @@ function computeComparison(
     return { summary: parts.join('; '), source: 'model-generated' };
   }
   return {
-    summary: `Experimental viability ${exp.viability.toFixed(1)}% vs control ${ctrl.viability.toFixed(1)}% (Δ ${deltaV >= 0 ? '+' : ''}${deltaV.toFixed(1)} pp, ${pctV >= 0 ? '+' : ''}${pctV.toFixed(1)}%); population Δ ${popPct >= 0 ? '+' : ''}${popPct.toFixed(1)}%`,
+    summary: `Experimental viability ${exp.viability.toFixed(1)}% vs control ${ctrl.viability.toFixed(1)}% (Δ ${deltaV >= 0 ? '+' : ''}${deltaV.toFixed(1)} pp, ${pctV >= 0 ? '+' : ''}${pctV.toFixed(1)}%); population Δ ${popPct >= 0 ? '+' : ''}${popPct.toFixed(1)}% (${SIMULATED_ESTIMATE_LABEL})`,
     source: 'model-generated',
   };
 }
@@ -234,26 +315,36 @@ function formatInterpretation(
   level: ReportLanguageLevel,
 ): string {
   if (comparison.source === 'not-recorded') return 'Not recorded — insufficient control or results data for comparison.';
-  if (level === 'simple') return `The experimental condition differed from the control as shown above. ${setup.control.mode === 'none-not-applicable' ? 'No control was used, so comparison is limited.' : 'Interpret cautiously — this is an educational model.'}`;
-  if (level === 'technical') return `Model-derived comparison only; control mode=${setup.control.mode}. ${comparison.summary}. Causal inference not supported by prototype simulation.`;
-  return `Model comparison recorded. ${comparison.summary}. Educational interpretation only.`;
+  const movementNote = setup.attachedTherapeutic?.intendedOutcome === 'reduce-movement'
+    ? ' Do not interpret viability changes as evidence of reduced cell movement.'
+    : '';
+  if (level === 'simple') return `The experimental condition differed from the control as shown above.${movementNote} ${setup.control.mode === 'none-not-applicable' ? 'No control was used, so comparison is limited.' : 'Interpret cautiously — this is an educational model.'}`;
+  if (level === 'technical') return `Model-derived comparison only; control mode=${setup.control.mode}. ${comparison.summary}.${movementNote} Causal inference not supported by prototype simulation.`;
+  return `Model comparison recorded. ${comparison.summary}.${movementNote} Educational interpretation only.`;
 }
 
-function formatLimitations(level: ReportLanguageLevel): string {
-  if (level === 'simple') return 'This is a simplified educational simulation. It does not replace real experiments or clinical testing.';
-  if (level === 'technical') return `Prototype educational simulation (${GENESIS_LAB_VERSION}) — deterministic/semi-stochastic rules; not validated for predictive, clinical, or regulatory use; parameter coupling simplified.`;
-  return 'Prototype educational simulation — not validated for clinical or predictive use.';
+function formatLimitations(setup: ActiveExperimentSetup, level: ReportLanguageLevel): string {
+  const tumourExtra = isTumourCellModel(setup.catalogueEntryId)
+    ? ' Tumour-cell movement, proliferation, and viability are separate educational channels; unsupported claims are reported as not measured.'
+    : '';
+  if (level === 'simple') return `This is a simplified educational simulation. It does not replace real experiments or clinical testing.${tumourExtra}`;
+  if (level === 'technical') {
+    return `Prototype educational simulation (${GENESIS_LAB_VERSION}) — deterministic/semi-stochastic rules; not validated for predictive, clinical, or regulatory use; parameter coupling simplified; no real vector construct.${tumourExtra}`;
+  }
+  return `Prototype educational simulation — not validated for clinical or predictive use.${tumourExtra}`;
 }
 
 function formatProvenance(setup: ActiveExperimentSetup, sim: Simulation | null, level: ReportLanguageLevel): string {
   const base = `Experiment ${setup.id}; sample ${setup.sampleId}; control ${setup.control.sampleId}; provenance ${setup.provenance}`;
-  if (level === 'technical') return `${base}; run ${sim?.id ?? 'n/a'}; seed ${sim?.seed ?? 'n/a'}; updated ${setup.updatedAt}`;
+  if (level === 'technical') {
+    return `${base}; run ${sim?.id ?? 'n/a'}; seed ${sim?.seed ?? setup.simulationSeed ?? 'n/a'}; therapeutic ${setup.attachedTherapeutic?.designId ?? 'none'}; updated ${setup.updatedAt}`;
+  }
   return base;
 }
 
 function formatDisclaimer(level: ReportLanguageLevel): string {
   if (level === 'simple') return 'All results are from a computer simulation for learning. They are not medical or laboratory advice.';
-  return 'All results are simulated and for educational purposes only. Not for clinical diagnosis, therapeutic decisions, or wet-lab protocols.';
+  return `All results are ${SIMULATED_ESTIMATE_LABEL}s for educational purposes only. Not for clinical diagnosis, therapeutic decisions, or wet-lab protocols. No real vector construct is produced.`;
 }
 
 export function assessReportQuality(

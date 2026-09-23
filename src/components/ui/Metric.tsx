@@ -23,12 +23,23 @@ interface SimpleLineChartProps {
   label: string;
   color?: string;
   yUnit?: string;
+  compareData?: { x: number; y: number }[];
+  compareLabel?: string;
+  compareColor?: string;
 }
 
-export function SimpleLineChart({ data, label, color = '#4fc3f7', yUnit = '' }: SimpleLineChartProps) {
+export function SimpleLineChart({
+  data,
+  label,
+  color = '#4fc3f7',
+  yUnit = '',
+  compareData,
+  compareLabel = 'Control',
+  compareColor = '#94a3b8',
+}: SimpleLineChartProps) {
   if (data.length < 2) {
     return (
-      <div className="chart-empty">
+      <div className="chart-empty" role="img" aria-label={`${label}: insufficient data`}>
         <span>{label}</span>
         <p>Insufficient data points</p>
       </div>
@@ -41,24 +52,32 @@ export function SimpleLineChart({ data, label, color = '#4fc3f7', yUnit = '' }: 
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
 
-  const xMin = data[0].x;
-  const xMax = data[data.length - 1].x;
-  const yMin = Math.min(...data.map((d) => d.y));
-  const yMax = Math.max(...data.map((d) => d.y));
+  const allY = [
+    ...data.map((d) => d.y),
+    ...(compareData ?? []).map((d) => d.y),
+  ];
+  const xMin = Math.min(data[0].x, ...(compareData?.map((d) => d.x) ?? [data[0].x]));
+  const xMax = Math.max(
+    data[data.length - 1].x,
+    ...(compareData?.map((d) => d.x) ?? [data[data.length - 1].x]),
+  );
+  const yMin = Math.min(...allY);
+  const yMax = Math.max(...allY);
   const yRange = yMax - yMin || 1;
 
-  const points = data
-    .map((d) => {
-      const x = padding.left + ((d.x - xMin) / (xMax - xMin || 1)) * chartW;
-      const y = padding.top + chartH - ((d.y - yMin) / yRange) * chartH;
-      return `${x},${y}`;
-    })
-    .join(' ');
+  const toPoints = (series: { x: number; y: number }[]) =>
+    series
+      .map((d) => {
+        const x = padding.left + ((d.x - xMin) / (xMax - xMin || 1)) * chartW;
+        const y = padding.top + chartH - ((d.y - yMin) / yRange) * chartH;
+        return `${x},${y}`;
+      })
+      .join(' ');
 
   return (
-    <div className="simple-chart">
+    <div className="simple-chart" role="img" aria-label={`${label} trend chart`}>
       <div className="chart-label">{label}{yUnit ? ` (${yUnit})` : ''}</div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="chart-svg">
+      <svg viewBox={`0 0 ${width} ${height}`} className="chart-svg" aria-hidden="true">
         <line
           x1={padding.left}
           y1={padding.top + chartH}
@@ -67,8 +86,18 @@ export function SimpleLineChart({ data, label, color = '#4fc3f7', yUnit = '' }: 
           stroke="#334155"
           strokeWidth="1"
         />
+        {compareData && compareData.length >= 2 && (
+          <polyline
+            points={toPoints(compareData)}
+            fill="none"
+            stroke={compareColor}
+            strokeWidth="2"
+            strokeDasharray="4 3"
+            strokeLinejoin="round"
+          />
+        )}
         <polyline
-          points={points}
+          points={toPoints(data)}
           fill="none"
           stroke={color}
           strokeWidth="2"
@@ -87,6 +116,11 @@ export function SimpleLineChart({ data, label, color = '#4fc3f7', yUnit = '' }: 
           />
         )}
       </svg>
+      {compareData && compareData.length >= 2 && (
+        <p className="chart-legend text-muted">
+          Solid: experimental · Dashed: {compareLabel}
+        </p>
+      )}
     </div>
   );
 }
