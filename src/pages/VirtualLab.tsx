@@ -18,7 +18,9 @@ import { ControlExperimentPanel } from '../components/lab/ControlExperimentPanel
 import { CultureVisualisation } from '../components/lab/CultureVisualisation';
 import { ScientificReportPanel } from '../components/lab/ScientificReportPanel';
 import { TumourMetricsPanel } from '../components/lab/TumourMetricsPanel';
+import { TumourCellMovementReadoutPanel } from '../components/lab/TumourCellMovementReadoutPanel';
 import { TumourTestFlowPanel } from '../components/lab/TumourTestFlowPanel';
+import { buildTumourCellMovementReadout } from '../services/tumourCellMovementReadout';
 import { forecastViability } from '../services/viabilityForecast';
 import { runExperimentalDesignCheck, generateAutoControlEnvironment } from '../services/designCheck';
 import { useAppState, sendToMicroscope } from '../store/AppContext';
@@ -583,7 +585,7 @@ export function VirtualLabPage() {
       return;
     }
     const project = state.projects.find((p) => p.id === state.settings.activeProjectId) ?? null;
-    dispatch({ type: 'SET_REPORT_DRAFT', payload: buildScientificReport(setup, sim, controlSim, project, level) });
+    dispatch({ type: 'SET_REPORT_DRAFT', payload: buildScientificReport(setup, sim, controlSim, project, level, '', state.settings.replicateCount) });
     setReportLevel(level);
     if (setup.lifecycle === 'active' || setup.lifecycle === 'ready') {
       dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: { ...setup, lifecycle: 'completed', completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } });
@@ -630,6 +632,33 @@ export function VirtualLabPage() {
   const controlSummary = setup?.control
     ? `${setup.control.displayName}; T ${setup.control.environment.temperature}°C, pH ${setup.control.environment.ph}, O₂ ${setup.control.environment.oxygen}%; untreated${envMatch.ok ? '; matched to experimental' : '; MISMATCHED vs experimental'}`
     : 'No control';
+
+  const movementReadout = useMemo(() => {
+    if (!isTumourCellModel(selectedCatalogueId) || !setup) return null;
+    const treatment = attachedTherapeutic ?? sim?.therapeuticTreatment ?? null;
+    const baseSeed = setup.simulationSeed
+      ?? sim?.seed
+      ?? deriveTumourExperimentSeed(treatment?.designId, selectedCatalogueId);
+    return buildTumourCellMovementReadout({
+      cellModelId: selectedCatalogueId,
+      cellModelName: catalogueEntry?.name ?? selectedCatalogueId,
+      experimentalEnv: sim?.environment ?? environmentFromSetup(setup),
+      controlEnv: setup.control.environment,
+      treatment,
+      baseSeed,
+      replicateCount: state.settings.replicateCount,
+      liveExperimental: sim,
+      liveControl: controlSim,
+    });
+  }, [
+    selectedCatalogueId,
+    setup,
+    attachedTherapeutic,
+    sim,
+    controlSim,
+    catalogueEntry?.name,
+    state.settings.replicateCount,
+  ]);
 
   return (
     <div className="virtual-lab">
@@ -932,17 +961,20 @@ export function VirtualLabPage() {
             </div>
           )}
           {isTumourCellModel(selectedCatalogueId) && (
-            <TumourMetricsPanel
-              organismId={selectedCatalogueId}
-              organismName={catalogueEntry?.name ?? selectedCatalogueId}
-              experimental={displayState}
-              control={controlDisplayState}
-              experimentalSim={sim}
-              controlSim={controlSim}
-              treatment={attachedTherapeutic ?? sim?.therapeuticTreatment}
-              seed={setup?.simulationSeed ?? sim?.seed}
-              controlSummary={controlSummary}
-            />
+            <>
+              {movementReadout && <TumourCellMovementReadoutPanel readout={movementReadout} />}
+              <TumourMetricsPanel
+                organismId={selectedCatalogueId}
+                organismName={catalogueEntry?.name ?? selectedCatalogueId}
+                experimental={displayState}
+                control={controlDisplayState}
+                experimentalSim={sim}
+                controlSim={controlSim}
+                treatment={attachedTherapeutic ?? sim?.therapeuticTreatment}
+                seed={setup?.simulationSeed ?? sim?.seed}
+                controlSummary={controlSummary}
+              />
+            </>
           )}
         </Card>
 
@@ -976,6 +1008,7 @@ export function VirtualLabPage() {
               experimentalSim={sim}
               controlSim={controlSim}
               project={state.projects.find((p) => p.id === state.settings.activeProjectId) ?? null}
+              replicateCount={state.settings.replicateCount}
               onRegenerate={(level) => handleGenerateReport(level)}
               onUpdateSection={(sectionId, content) => dispatch({ type: 'UPDATE_REPORT_SECTION', payload: { sectionId, content } })}
               onFinalize={() => dispatch({

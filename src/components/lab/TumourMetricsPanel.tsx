@@ -124,7 +124,8 @@ export function TumourMetricsPanel({
               </dl>
               {m.key === 'cellMovement' && (
                 <p className="warn-text tumour-metric-note">
-                  A drop in viability is not evidence of reduced movement.
+                  A drop in viability is not evidence of reduced movement. This simulation cannot
+                  establish that metastasis stopped.
                 </p>
               )}
             </div>
