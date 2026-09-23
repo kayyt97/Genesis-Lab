@@ -312,6 +312,49 @@ function formatMovementSection(
   return { content: formatMovementReadoutForReport(readout), source: 'model-generated' };
 }
 
+/**
+ * Ensure a persisted report draft includes an up-to-date Tumour Cell Movement section
+ * (older drafts from before this feature omit it entirely).
+ */
+export function ensureTumourMovementReportSection(
+  report: ScientificReport,
+  setup: ActiveExperimentSetup,
+  experimentalSim: Simulation | null,
+  controlSim: Simulation | null,
+  replicateCount = 1,
+): ScientificReport {
+  const movement = formatMovementSection(
+    setup,
+    experimentalSim,
+    controlSim,
+    replicateCount,
+    report.reportLevel,
+  );
+  const sectionBody = section(
+    'tumour-cell-movement',
+    t('Tumour Cell Movement', report.reportLevel),
+    movement.content,
+    movement.source,
+  );
+  const idx = report.sections.findIndex((s) => s.id === 'tumour-cell-movement');
+  if (idx >= 0) {
+    const sections = report.sections.slice();
+    sections[idx] = sectionBody;
+    return { ...report, sections, updatedAt: new Date().toISOString() };
+  }
+  // Insert before tumour-comparison or control-comparison when missing
+  const insertAt = report.sections.findIndex(
+    (s) => s.id === 'tumour-comparison' || s.id === 'control-comparison' || s.id === 'measurements',
+  );
+  const sections = report.sections.slice();
+  if (insertAt >= 0) {
+    sections.splice(insertAt + (report.sections[insertAt]?.id === 'measurements' ? 1 : 0), 0, sectionBody);
+  } else {
+    sections.push(sectionBody);
+  }
+  return { ...report, sections, updatedAt: new Date().toISOString() };
+}
+
 function computeComparison(
   exp: Simulation['organismState'] | undefined,
   ctrl: Simulation['organismState'] | undefined,

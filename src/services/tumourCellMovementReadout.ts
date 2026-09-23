@@ -207,25 +207,30 @@ export function buildTumourCellMovementReadout(opts: {
 
   for (let i = 1; i <= count; i++) {
     const seed = deriveMovementReplicateSeed(opts.baseSeed, i);
-    if (
+    const liveReady = !!(
       i === 1
       && opts.liveExperimental
       && opts.liveControl
       && opts.liveExperimental.organismId === opts.cellModelId
       && (opts.liveExperimental.currentTick > 0 || opts.liveExperimental.snapshots.length > 0)
-    ) {
-      replicates.push(replicateFromPair(1, opts.liveExperimental.seed ?? seed, opts.liveExperimental, opts.liveControl));
+    );
+    if (liveReady) {
+      replicates.push(replicateFromPair(1, opts.liveExperimental!.seed ?? seed, opts.liveExperimental!, opts.liveControl!));
       continue;
     }
+    // Idle dish (not started): project with the live dish seed when available so Start continues the same run.
+    const runSeed = i === 1 && opts.liveExperimental?.seed != null
+      ? opts.liveExperimental.seed
+      : seed;
     const { treated, control } = runPairedMovement(
       opts.cellModelId,
       opts.experimentalEnv,
       opts.controlEnv,
       opts.treatment,
-      seed,
+      runSeed,
       ticks,
     );
-    replicates.push(replicateFromPair(i, seed, treated, control));
+    replicates.push(replicateFromPair(i, runSeed, treated, control));
   }
 
   const primary = replicates[0]!;
