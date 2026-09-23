@@ -775,7 +775,7 @@ export function VirtualLabPage() {
         <Card title="Organism Selection">
           <BiologicalSampleSelector
             key={setup?.catalogueEntryId ?? selectedCatalogueId}
-            selectedId={selectedCatalogueId}
+            selectedId={setup?.catalogueEntryId ?? selectedCatalogueId}
             sampleDisplayId={setup?.sampleId}
             dishCategory={setup?.catalogueCategory ?? catalogueEntry?.category}
             onSelect={handleSelectOrganism}
