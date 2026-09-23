@@ -9,6 +9,10 @@ import {
   buildComparisonRows,
   isTumourCellModel,
 } from './tumourCellSimulation';
+import {
+  buildTumourCellMovementReadout,
+  formatMovementReadoutForReport,
+} from './tumourCellMovementReadout';
 
 export const GENESIS_LAB_VERSION = '0.5.0-phase5';
 
@@ -25,11 +29,13 @@ export function buildScientificReport(
   project: ResearchProject | null,
   reportLevel: ReportLanguageLevel = 'standard',
   author = '',
+  replicateCount = 1,
 ): ScientificReport {
   const expState = experimentalSim?.organismState;
   const ctrlState = controlSim?.organismState;
   const now = new Date().toISOString();
   const comparison = computeComparison(expState, ctrlState, experimentalSim, controlSim, reportLevel);
+  const movementSection = formatMovementSection(setup, experimentalSim, controlSim, replicateCount, reportLevel);
 
   const sections = [
     section('title', t('Title', reportLevel), setup.sampleDisplayName, 'user-entered'),
@@ -51,6 +57,12 @@ export function buildScientificReport(
     section('duration', t('Duration', reportLevel), experimentalSim ? `${experimentalSim.timeHours.toFixed(1)} simulated hours` : 'Not recorded', experimentalSim ? 'model-generated' : 'not-recorded'),
     section('results', t('Results', reportLevel), formatResults(expState, experimentalSim, setup, reportLevel), expState ? 'model-generated' : 'not-recorded'),
     section('measurements', t('Key measurements', reportLevel), formatMeasurements(expState, ctrlState, setup, reportLevel), expState ? 'model-generated' : 'not-recorded'),
+    section(
+      'tumour-cell-movement',
+      t('Tumour Cell Movement', reportLevel),
+      movementSection.content,
+      movementSection.source,
+    ),
     section('tumour-comparison', t('Tumour-cell metric comparison', reportLevel), formatTumourComparison(setup, experimentalSim, controlSim, reportLevel), isTumourCellModel(setup.catalogueEntryId) && expState ? 'model-generated' : 'not-recorded'),
     section('control-comparison', t('Experimental vs control comparison', reportLevel), comparison.summary, comparison.source),
     section('observations', t('Observations', reportLevel), formatObservations(experimentalSim, reportLevel), experimentalSim?.events.length ? 'model-generated' : 'not-recorded'),
@@ -261,6 +273,45 @@ function formatTumourComparison(
     .join(' | ');
 }
 
+function formatMovementSection(
+  setup: ActiveExperimentSetup,
+  expSim: Simulation | null,
+  ctrlSim: Simulation | null,
+  replicateCount: number,
+  level: ReportLanguageLevel,
+): { content: string; source: ScientificReport['sections'][0]['source'] } {
+  if (!isTumourCellModel(setup.catalogueEntryId)) {
+    return {
+      content: 'not measured — sample is not a simulation-ready tumour cell model',
+      source: 'not-recorded',
+    };
+  }
+  const baseSeed = setup.simulationSeed
+    ?? expSim?.seed
+    ?? 42;
+  const readout = buildTumourCellMovementReadout({
+    cellModelId: setup.catalogueEntryId,
+    cellModelName: setup.sampleDisplayName,
+    experimentalEnv: expSim?.environment ?? setup.environment,
+    controlEnv: setup.control.environment,
+    treatment: setup.attachedTherapeutic,
+    baseSeed,
+    replicateCount,
+    liveExperimental: expSim,
+    liveControl: ctrlSim,
+  });
+  if (!readout) {
+    return { content: 'not measured', source: 'not-recorded' };
+  }
+  if (level === 'simple') {
+    return {
+      content: `Educational simulation: treated movement ${readout.treatedMovement === null ? 'not measured' : `${readout.treatedMovement.toFixed(1)}%`} vs untreated control ${readout.controlMovement === null ? 'not measured' : `${readout.controlMovement.toFixed(1)}%`} (${readout.percentDifferenceVsControl} vs control). ${readout.designName ? `Treatment “${readout.designName}”.` : ''} This does not mean metastasis stopped.`,
+      source: 'model-generated',
+    };
+  }
+  return { content: formatMovementReadoutForReport(readout), source: 'model-generated' };
+}
+
 function computeComparison(
   exp: Simulation['organismState'] | undefined,
   ctrl: Simulation['organismState'] | undefined,
@@ -325,7 +376,7 @@ function formatInterpretation(
 
 function formatLimitations(setup: ActiveExperimentSetup, level: ReportLanguageLevel): string {
   const tumourExtra = isTumourCellModel(setup.catalogueEntryId)
-    ? ' Tumour-cell movement, proliferation, and viability are separate educational channels; unsupported claims are reported as not measured.'
+    ? ' Tumour-cell movement, proliferation, and viability are separate educational channels; unsupported claims are reported as not measured. This simulation cannot establish that metastasis stopped.'
     : '';
   if (level === 'simple') return `This is a simplified educational simulation. It does not replace real experiments or clinical testing.${tumourExtra}`;
   if (level === 'technical') {

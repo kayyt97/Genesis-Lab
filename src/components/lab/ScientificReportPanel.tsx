@@ -21,6 +21,7 @@ interface ScientificReportPanelProps {
   experimentalSim: Simulation | null;
   controlSim: Simulation | null;
   project: ResearchProject | null;
+  replicateCount?: number;
   onRegenerate: (level: ReportLanguageLevel) => void;
   onUpdateSection: (sectionId: string, content: string) => void;
   onFinalize: () => void;
@@ -38,6 +39,7 @@ export function ScientificReportPanel({
   experimentalSim,
   controlSim,
   project: _project,
+  replicateCount = 1,
   onRegenerate,
   onUpdateSection,
   onFinalize,
@@ -103,8 +105,8 @@ export function ScientificReportPanel({
         <Button variant="ghost" onClick={() => openReportPrintPreview(report)}>Print / PDF preview</Button>
         <Button variant="ghost" onClick={() => exportReportMarkdown(report)}>Download Markdown</Button>
         <Button variant="ghost" onClick={() => exportReportJson(report, provenance)}>Download JSON</Button>
-        <Button variant="ghost" onClick={() => exportExperimentCsv(setup, experimentalSim, controlSim)}>Export CSV data</Button>
-        <Button variant="ghost" onClick={() => exportExperimentJson(setup, experimentalSim, controlSim, provenance)}>Export experiment JSON</Button>
+        <Button variant="ghost" onClick={() => exportExperimentCsv(setup, experimentalSim, controlSim, replicateCount)}>Export CSV data</Button>
+        <Button variant="ghost" onClick={() => exportExperimentJson(setup, experimentalSim, controlSim, provenance, replicateCount)}>Export experiment JSON</Button>
       </div>
       {feedback && <p className="success-text action-feedback" role="status">{feedback}</p>}
       {report.finalized && !feedback && (

@@ -1,6 +1,12 @@
 import type { ActiveExperimentSetup, ScientificReport } from '../types/experimentWorkspace';
 import type { Simulation } from '../types';
 import { GENESIS_LAB_VERSION, reportToMarkdown } from './reportGenerator';
+import {
+  buildTumourCellMovementReadout,
+  movementReadoutToCsvRows,
+  movementReadoutToExportPayload,
+} from './tumourCellMovementReadout';
+import { isTumourCellModel } from './tumourCellSimulation';
 
 export interface ExportProvenance {
   genesisLabVersion: string;
@@ -58,27 +64,73 @@ export function exportReportMarkdown(report: ScientificReport) {
   downloadTextFile(`${report.title.replace(/\s+/g, '_')}_report.md`, reportToMarkdown(report), 'text/markdown');
 }
 
-export function exportExperimentCsv(setup: ActiveExperimentSetup, sim: Simulation | null, controlSim: Simulation | null) {
+export function exportExperimentCsv(
+  setup: ActiveExperimentSetup,
+  sim: Simulation | null,
+  controlSim: Simulation | null,
+  replicateCount = 1,
+) {
   const rows = [
     ['field', 'value', 'source'],
     ['sampleId', setup.sampleId, 'user'],
     ['sampleName', setup.sampleDisplayName, 'user'],
     ['viability', sim?.organismState.viability.toFixed(2) ?? '', 'model'],
     ['controlViability', controlSim?.organismState.viability.toFixed(2) ?? '', 'model'],
+    ['proliferation', sim?.organismState.proliferation === null || sim?.organismState.proliferation === undefined ? '' : sim.organismState.proliferation.toFixed(2), 'model'],
+    ['controlProliferation', controlSim?.organismState.proliferation === null || controlSim?.organismState.proliferation === undefined ? '' : controlSim.organismState.proliferation.toFixed(2), 'model'],
+    ['cellMovement', sim?.organismState.cellMovement === null || sim?.organismState.cellMovement === undefined ? '' : sim.organismState.cellMovement.toFixed(2), 'model'],
+    ['controlCellMovement', controlSim?.organismState.cellMovement === null || controlSim?.organismState.cellMovement === undefined ? '' : controlSim.organismState.cellMovement.toFixed(2), 'model'],
     ['timeHours', sim?.timeHours.toFixed(2) ?? '', 'model'],
     ['temperature', String(setup.environment.temperature), 'user'],
     ['ph', String(setup.environment.ph), 'user'],
   ];
+  const movement = buildMovementExport(setup, sim, controlSim, replicateCount);
+  if (movement) {
+    rows.push(...movementReadoutToCsvRows(movement));
+  }
   const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
   downloadTextFile(`${setup.sampleId}_results.csv`, csv, 'text/csv');
 }
 
-export function exportExperimentJson(setup: ActiveExperimentSetup, sim: Simulation | null, controlSim: Simulation | null, provenance: ExportProvenance) {
+export function exportExperimentJson(
+  setup: ActiveExperimentSetup,
+  sim: Simulation | null,
+  controlSim: Simulation | null,
+  provenance: ExportProvenance,
+  replicateCount = 1,
+) {
+  const movementReadout = buildMovementExport(setup, sim, controlSim, replicateCount);
   downloadTextFile(
     `${setup.id}_experiment.json`,
-    JSON.stringify({ setup, experimentalSimulation: sim, controlSimulation: controlSim, provenance }, null, 2),
+    JSON.stringify({
+      setup,
+      experimentalSimulation: sim,
+      controlSimulation: controlSim,
+      provenance,
+      tumourCellMovement: movementReadout ? movementReadoutToExportPayload(movementReadout) : null,
+    }, null, 2),
     'application/json',
   );
+}
+
+function buildMovementExport(
+  setup: ActiveExperimentSetup,
+  sim: Simulation | null,
+  controlSim: Simulation | null,
+  replicateCount: number,
+) {
+  if (!isTumourCellModel(setup.catalogueEntryId)) return null;
+  return buildTumourCellMovementReadout({
+    cellModelId: setup.catalogueEntryId,
+    cellModelName: setup.sampleDisplayName,
+    experimentalEnv: sim?.environment ?? setup.environment,
+    controlEnv: setup.control.environment,
+    treatment: setup.attachedTherapeutic,
+    baseSeed: setup.simulationSeed ?? sim?.seed ?? 42,
+    replicateCount,
+    liveExperimental: sim,
+    liveControl: controlSim,
+  });
 }
 
 export function openReportPrintPreview(report: ScientificReport) {
