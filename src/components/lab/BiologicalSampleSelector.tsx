@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { ORGANISM_CATEGORIES, organismIndex } from '../../catalogue/index';
 import type { OrganismCatalogueEntry } from '../../catalogue/types';
 import { biologicalSystemTypeLabel } from '../../services/organismSimulationProfile';
+import { resolveSampleSelectorCategory } from '../../services/sampleSelectorSync';
 
 interface BiologicalSampleSelectorProps {
   selectedId: string;
@@ -22,9 +23,8 @@ export function BiologicalSampleSelector({
   onSelect,
 }: BiologicalSampleSelectorProps) {
   const selected = organismIndex.getById(selectedId);
-  // Category must stay locked to the dish sample so the dropdown never shows e.g. Bacteria/B. subtilis
-  // while the culture dish is HeLa.
-  const syncedCategory = selected?.category ?? dishCategory ?? 'bacteria';
+  // Prefer the dish experiment category so HeLa never appears under Bacteria (or vice versa).
+  const syncedCategory = resolveSampleSelectorCategory(selected?.category, dishCategory);
   const [browseCategory, setBrowseCategory] = useState(syncedCategory);
   const [search, setSearch] = useState('');
   const [browseOpen, setBrowseOpen] = useState(false);
@@ -34,7 +34,7 @@ export function BiologicalSampleSelector({
       setBrowseCategory(syncedCategory);
       setSearch('');
     }
-  }, [selectedId, syncedCategory]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedId, syncedCategory, dishCategory]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const page = useMemo(() => {
     return organismIndex.query({
@@ -48,15 +48,24 @@ export function BiologicalSampleSelector({
 
   const options = useMemo(() => {
     const items = [...page.items];
-    if (selected && isSimReady(selected) && !items.some((e) => e.id === selected.id)) {
+    // Only inject the selected sample into the list when it belongs to the browsed category.
+    if (
+      selected
+      && isSimReady(selected)
+      && selected.category === browseCategory
+      && !items.some((e) => e.id === selected.id)
+    ) {
       items.unshift(selected);
     }
-    // Guarantee the <select> always has a matching option for selectedId
-    if (selected && !items.some((e) => e.id === selectedId)) {
+    if (
+      selected
+      && selected.category === browseCategory
+      && !items.some((e) => e.id === selectedId)
+    ) {
       items.unshift(selected);
     }
     return items;
-  }, [page.items, selected, selectedId]);
+  }, [page.items, selected, selectedId, browseCategory]);
 
   const categories = ORGANISM_CATEGORIES.filter((c) => {
     if (c.value === 'all') return false;
