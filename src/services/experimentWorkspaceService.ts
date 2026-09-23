@@ -106,6 +106,8 @@ export function isTherapeuticDesignId(id: string): boolean {
   return id.startsWith('TD-');
 }
 
+const SIMULATED_ESTIMATE_HINT = 'simulated educational estimate';
+
 /** Attach a saved conceptual therapeutic to the experimental dish only (control stays untreated). */
 export function attachTherapeuticToSetup(
   setup: ActiveExperimentSetup,
@@ -123,13 +125,51 @@ export function attachTherapeuticToSetup(
     ...asMolecule,
     attachedTherapeutic: config,
     simulationSeed: seed,
+    // Preserve any pre-vector baseline so before/after comparison remains available
+    recordedBaseline: setup.recordedBaseline ?? null,
     updatedAt: now,
     history: [
       ...asMolecule.history,
       {
         timestamp: now,
         type: 'therapeutic-attach',
-        detail: `Conceptual therapeutic “${design.name}” (${design.intendedOutcome}) attached to experimental dish; control remains untreated`,
+        detail: `Conceptual therapeutic “${design.name}” (${design.intendedOutcome ?? 'growth-suppression'}) attached to experimental dish; control remains untreated`,
+      },
+    ],
+  };
+}
+
+/** Capture experimental (+ optional control) dish state as the pre-vector baseline. */
+export function recordDishBaseline(
+  setup: ActiveExperimentSetup,
+  experimental: {
+    timeHours: number;
+    currentTick: number;
+    seed?: number;
+    organismState: import('../types').OrganismSimulationState;
+  },
+  controlState?: import('../types').OrganismSimulationState | null,
+): ActiveExperimentSetup {
+  const now = new Date().toISOString();
+  const baseline: import('../types/experimentWorkspace').RecordedDishBaseline = {
+    recordedAt: now,
+    timeHours: experimental.timeHours,
+    tick: experimental.currentTick,
+    seed: experimental.seed ?? setup.simulationSeed ?? 42,
+    organismState: { ...experimental.organismState },
+    controlOrganismState: controlState ? { ...controlState } : null,
+    label: 'Pre-vector baseline (untreated experimental dish)',
+  };
+  return {
+    ...setup,
+    recordedBaseline: baseline,
+    updatedAt: now,
+    history: [
+      ...setup.history,
+      {
+        timestamp: now,
+        type: 'baseline-recorded',
+        detail: `Baseline recorded at ${baseline.timeHours.toFixed(2)} h (tick ${baseline.tick}) — ${SIMULATED_ESTIMATE_HINT}`,
       },
     ],
   };

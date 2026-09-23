@@ -288,6 +288,142 @@ export function formatMetricDisplay(reading: EducationalMetricReading): string {
   return `${reading.value.toFixed(1)}${reading.unit} (${reading.disclaimer})`;
 }
 
+export interface BeforeAfterMetricRow {
+  key: EducationalMetricReading['key'];
+  metric: string;
+  unit: string;
+  baseline: string;
+  after: string;
+  control: string;
+  pctChangeFromBaseline: string;
+  pctDifferenceVsControl: string;
+  calculation: string;
+  note: string;
+  disclaimer: typeof SIMULATED_ESTIMATE_LABEL;
+}
+
+export interface BeforeAfterResult {
+  cellModelId: string;
+  cellModelName: string;
+  designName: string | null;
+  intendedOutcome: string | null;
+  seed: number;
+  baselineTimeHours: number;
+  elapsedAfterHours: number;
+  elapsedSinceBaselineHours: number;
+  rows: BeforeAfterMetricRow[];
+  howCalculated: string[];
+  limitations: string[];
+  disclaimer: typeof SIMULATED_ESTIMATE_LABEL;
+}
+
+/**
+ * Before (recorded baseline) → after (current experimental with vector) vs untreated control.
+ * Every numeric display is labelled as a simulated educational estimate.
+ */
+export function buildBeforeAfterResult(opts: {
+  cellModelId: string;
+  cellModelName: string;
+  baseline: {
+    timeHours: number;
+    organismState: OrganismSimulationState;
+  };
+  after: OrganismSimulationState;
+  control: OrganismSimulationState | null;
+  treatment?: TherapeuticTreatmentConfig | null;
+  seed: number;
+  elapsedAfterHours: number;
+}): BeforeAfterResult {
+  const outcome = opts.treatment?.intendedOutcome;
+  const strengths = opts.treatment
+    ? designEffectStrengths(opts.treatment.variables)
+    : null;
+  const effective = strengths
+    ? strengths.delivery * strengths.potency * strengths.selectivity * (1 - strengths.drag * 0.5)
+    : null;
+
+  const baselineM = readEducationalMetrics(opts.baseline.organismState, opts.cellModelId, outcome);
+  const afterM = readEducationalMetrics(opts.after, opts.cellModelId, outcome);
+  const controlM = opts.control
+    ? readEducationalMetrics(opts.control, opts.cellModelId, outcome)
+    : null;
+
+  const rows: BeforeAfterMetricRow[] = afterM.map((afterReading) => {
+    const base = baselineM.find((x) => x.key === afterReading.key)!;
+    const ctrl = controlM?.find((x) => x.key === afterReading.key);
+    const pctBase = percentDifference(afterReading.value, base.value);
+    const pctCtrl = percentDifference(afterReading.value, ctrl?.value ?? null);
+    const calcParts: string[] = [];
+    if (afterReading.value !== null && base.value !== null) {
+      calcParts.push(
+        `% change from baseline = ((after − baseline) / baseline) × 100 = ((${afterReading.value.toFixed(2)} − ${base.value.toFixed(2)}) / ${base.value.toFixed(2)}) × 100`,
+      );
+    }
+    if (afterReading.value !== null && ctrl?.value !== null && ctrl?.value !== undefined) {
+      calcParts.push(
+        `% difference vs untreated control = ((after − control) / control) × 100 = ((${afterReading.value.toFixed(2)} − ${ctrl.value.toFixed(2)}) / ${ctrl.value.toFixed(2)}) × 100`,
+      );
+    }
+    if (effective !== null && strengths) {
+      calcParts.push(
+        `Conceptual vector effective strength ≈ delivery×potency×selectivity×(1−0.5×drag) = ${effective.toFixed(3)} (from design sliders; educational only)`,
+      );
+    }
+    let note = '';
+    if (afterReading.key === 'cellMovement') {
+      note = 'A drop in viability is not evidence of reduced movement.';
+    }
+    return {
+      key: afterReading.key,
+      metric: afterReading.label,
+      unit: afterReading.unit,
+      baseline: formatMetricDisplay(base),
+      after: formatMetricDisplay(afterReading),
+      control: ctrl ? formatMetricDisplay(ctrl) : 'not measured',
+      pctChangeFromBaseline: pctBase === null ? 'not measured' : `${pctBase >= 0 ? '+' : ''}${pctBase.toFixed(1)}%`,
+      pctDifferenceVsControl: pctCtrl === null ? 'not measured' : `${pctCtrl >= 0 ? '+' : ''}${pctCtrl.toFixed(1)}%`,
+      calculation: calcParts.length ? calcParts.join(' · ') : 'not measured — insufficient values',
+      note,
+      disclaimer: SIMULATED_ESTIMATE_LABEL,
+    };
+  });
+
+  const outcomeLabel = outcome
+    ? (outcome === 'reduce-movement'
+      ? 'Reduce cell movement'
+      : outcome === 'growth-suppression'
+        ? 'Growth suppression'
+        : 'Cell killing')
+    : null;
+
+  return {
+    cellModelId: opts.cellModelId,
+    cellModelName: opts.cellModelName,
+    designName: opts.treatment?.designName ?? null,
+    intendedOutcome: outcomeLabel,
+    seed: opts.seed,
+    baselineTimeHours: opts.baseline.timeHours,
+    elapsedAfterHours: opts.elapsedAfterHours,
+    elapsedSinceBaselineHours: Math.max(0, opts.elapsedAfterHours - opts.baseline.timeHours),
+    rows,
+    howCalculated: [
+      'All metric values are simulated educational estimates from Genesis Lab’s prototype tumour-cell rules — not wet-lab measurements.',
+      'Baseline = experimental dish state recorded before the conceptual vector was applied (or at attach if none was recorded earlier).',
+      'After = current experimental dish state with the conceptual vector linked (control has no vector).',
+      '% change from baseline = ((after − baseline) / baseline) × 100.',
+      '% difference vs untreated control = ((after − control) / control) × 100.',
+      'Elapsed simulation time is in simulated hours (model clock), not wall-clock time.',
+      'Conceptual vector settings (uptake, therapeutic effect, targeting, clearance, off-target proxies) scale an educational “effective strength”; they do not produce a real vector construct.',
+    ],
+    limitations: [
+      'Values do not predict real biological efficacy or clinical outcomes.',
+      'Unsupported metrics appear as “not measured” rather than invented results.',
+      'A viability change must never be read as proof of reduced cell movement.',
+    ],
+    disclaimer: SIMULATED_ESTIMATE_LABEL,
+  };
+}
+
 /** Build comparison rows for report / UI */
 export function buildComparisonRows(
   experimental: OrganismSimulationState,
