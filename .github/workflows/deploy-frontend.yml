@@ -1,0 +1,37 @@
+# Manual / on-demand production deploy to genesis.jreco.de
+# Requires repository secret: JRECO_SSH_PRIVATE_KEY (private key for kara@jreco.de)
+name: Deploy frontend to jreco
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install and build
+        run: |
+          npm ci || npm install
+          npm run build
+          test -f dist/index.html
+      - name: Deploy via SSH
+        env:
+          JRECO_SSH_PRIVATE_KEY: ${{ secrets.JRECO_SSH_PRIVATE_KEY }}
+        run: |
+          test -n "$JRECO_SSH_PRIVATE_KEY"
+          bash scripts/deploy-frontend.sh
+      - name: Verify live asset is not the Sept-17 bundle
+        run: |
+          html=$(curl -fsSL https://genesis.jreco.de/)
+          asset=$(echo "$html" | grep -oE 'assets/index-[^"]+\.js' | head -1)
+          echo "Live asset: $asset"
+          test "$asset" != "assets/index-C1Jk-XLD.js"
+          js=$(curl -fsSL "https://genesis.jreco.de/$asset")
+          echo "$js" | grep -q "Tumour Cell Movement"
