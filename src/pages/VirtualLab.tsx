@@ -34,6 +34,8 @@ import {
   attachTherapeuticToSetup,
   isTherapeuticDesignId,
   recordDishBaseline,
+  syncMatchedControlEnvironment,
+  environmentsMatchForComparison,
 } from '../services/experimentWorkspaceService';
 import { getSimulationProfile, assertSimulationAllowed } from '../services/organismSimulationProfile';
 import { buildScientificReport } from '../services/reportGenerator';
@@ -251,6 +253,8 @@ export function VirtualLabPage() {
     }
 
     next = attachTherapeuticToSetup(next, design);
+    // Control must match experimental environment so treatment is the only intentional difference
+    next = syncMatchedControlEnvironment(next, sim.environment);
     const treatment = therapeuticConfigFromDesign(design);
     // Keep current dish state (and baseline); attach treatment in place — do not wipe metrics.
     const treatedSim = {
@@ -259,7 +263,12 @@ export function VirtualLabPage() {
       therapeuticTreatment: treatment,
     };
     const matchedControl = controlSim
-      ? { ...controlSim, seed: next.simulationSeed ?? controlSim.seed, therapeuticTreatment: undefined }
+      ? {
+        ...controlSim,
+        seed: next.simulationSeed ?? controlSim.seed,
+        therapeuticTreatment: undefined,
+        environment: { ...next.control.environment },
+      }
       : createSimulation(next.catalogueEntryId, next.control.environment, undefined, {
         seed: next.simulationSeed,
         conditionId: next.control.sampleId,
@@ -269,7 +278,7 @@ export function VirtualLabPage() {
     dispatch({ type: 'SET_SIMULATION', payload: treatedSim });
     dispatch({ type: 'SET_CONTROL_SIMULATION', payload: matchedControl });
     setActionFeedback(
-      `Applied conceptual vector “${design.name}” (${THERAPEUTIC_INTENDED_OUTCOME_LABELS[design.intendedOutcome ?? 'growth-suppression']}). pH unchanged. Control remains untreated. Step the simulation to see before/after.`,
+      `Applied conceptual vector “${design.name}” (${THERAPEUTIC_INTENDED_OUTCOME_LABELS[design.intendedOutcome ?? 'growth-suppression']}). pH unchanged. Control remains untreated and matched. Step the simulation to see before/after.`,
     );
   }, [setup, sim, controlSim, dispatch]);
 
@@ -290,6 +299,22 @@ export function VirtualLabPage() {
   useEffect(() => {
     if (setup?.catalogueEntryId) setSelectedCatalogueId(setup.catalogueEntryId);
   }, [setup?.catalogueEntryId]);
+
+  // Repair legacy mismatched auto-baseline controls (e.g. forced pH 7) so comparisons isolate treatment.
+  useEffect(() => {
+    if (!setup || !sim) return;
+    if (setup.control.mode !== 'auto-baseline') return;
+    const match = environmentsMatchForComparison(sim.environment, setup.control.environment);
+    if (match.ok) return;
+    const synced = syncMatchedControlEnvironment(setup, sim.environment);
+    dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: synced });
+    if (controlSim) {
+      dispatch({
+        type: 'SET_CONTROL_SIMULATION',
+        payload: { ...controlSim, environment: { ...synced.control.environment } },
+      });
+    }
+  }, [setup?.id, setup?.control.mode, sim?.environment.ph, sim?.environment.temperature]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!catalogueEntry) return;
@@ -500,28 +525,49 @@ export function VirtualLabPage() {
   const handleEnvChange = (key: keyof EnvironmentConditions, value: number) => {
     if (!sim || !setup) return;
     const newEnv = { ...sim.environment, [key]: value };
+    let nextSetup: typeof setup = {
+      ...setup,
+      environment: newEnv,
+      updatedAt: new Date().toISOString(),
+      history: [...setup.history, { timestamp: new Date().toISOString(), type: 'parameter-change', detail: `${key} → ${value}` }],
+    };
+    if (setup.control.mode === 'auto-baseline') {
+      nextSetup = syncMatchedControlEnvironment(nextSetup, newEnv);
+    }
     dispatch({ type: 'SET_SIMULATION', payload: updateSimulationEnvironment(sim, { [key]: value }) });
-    dispatch({
-      type: 'UPDATE_EXPERIMENT_SETUP',
-      payload: {
-        ...setup,
-        environment: newEnv,
-        updatedAt: new Date().toISOString(),
-        history: [...setup.history, { timestamp: new Date().toISOString(), type: 'parameter-change', detail: `${key} → ${value}` }],
-      },
-    });
+    dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: nextSetup });
+    if (controlSim && nextSetup.control.mode === 'auto-baseline') {
+      dispatch({
+        type: 'SET_CONTROL_SIMULATION',
+        payload: updateSimulationEnvironment(controlSim, { ...nextSetup.control.environment }),
+      });
+    }
   };
 
   const handleUseBaselineControl = () => {
     if (!setup || !catalogueEntry) return;
-    const control = createDefaultControl(catalogueEntry, setup.control.sampleId, defaultEnvironment);
+    const baselineEnv = sim?.environment ?? setup.environment;
+    const control = createDefaultControl(catalogueEntry, setup.control.sampleId, baselineEnv);
     const next = { ...setup, control: { ...control, mode: 'auto-baseline' as const }, updatedAt: new Date().toISOString() };
     applySetupSims(next);
   };
 
   const handleControlMode = (mode: NonNullable<typeof setup>['control']['mode'], reason?: string) => {
     if (!setup || !catalogueEntry) return;
-    const control = { ...setup.control, mode, reason, environment: mode === 'custom' ? setup.environment : setup.control.environment, updatedAt: new Date().toISOString() };
+    const matchedEnv = sim?.environment ?? setup.environment;
+    const control = {
+      ...setup.control,
+      mode,
+      reason,
+      environment: mode === 'none-not-applicable'
+        ? setup.control.environment
+        : mode === 'custom'
+          ? setup.control.environment
+          : { ...matchedEnv },
+      catalogueEntryId: catalogueEntry.id,
+      displayName: `${catalogueEntry.name} (control)`,
+      updatedAt: new Date().toISOString(),
+    };
     const next = { ...setup, control, updatedAt: new Date().toISOString() };
     if (mode === 'none-not-applicable') {
       dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: next });
@@ -566,10 +612,23 @@ export function VirtualLabPage() {
   const viabilityData = sim?.snapshots.map((s) => ({ x: s.timeHours, y: s.organismState.viability })) ?? [];
   const populationData = sim?.snapshots.map((s) => ({ x: s.timeHours, y: s.organismState.population / 1e6 })) ?? [];
   const hasTreatment = (setup?.transferredMolecules.some((m) => m.role === 'treatment') ?? false)
-    || !!attachedTherapeutic;
+    || !!attachedTherapeutic
+    || !!sim?.therapeuticTreatment;
+
+  const treatmentLabel = attachedTherapeutic?.designName
+    ?? sim?.therapeuticTreatment?.designName
+    ?? setup?.transferredMolecules.find((m) => m.role === 'treatment')?.name
+    ?? null;
+
+  const treatmentOutcome = attachedTherapeutic?.intendedOutcome
+    ?? sim?.therapeuticTreatment?.intendedOutcome;
+
+  const envMatch = setup && sim
+    ? environmentsMatchForComparison(sim.environment, setup.control.environment)
+    : { ok: true as const };
 
   const controlSummary = setup?.control
-    ? `${setup.control.displayName}; T ${setup.control.environment.temperature}°C, pH ${setup.control.environment.ph}, O₂ ${setup.control.environment.oxygen}%; untreated`
+    ? `${setup.control.displayName}; T ${setup.control.environment.temperature}°C, pH ${setup.control.environment.ph}, O₂ ${setup.control.environment.oxygen}%; untreated${envMatch.ok ? '; matched to experimental' : '; MISMATCHED vs experimental'}`
     : 'No control';
 
   return (
@@ -610,10 +669,24 @@ export function VirtualLabPage() {
                   showLabel={false}
                   morphologyType={profile.morphologyType}
                   category={profile.category}
-                  organismName={catalogueEntry?.name ?? 'No sample'}
+                  organismName={catalogueEntry?.name ?? setup?.sampleDisplayName ?? 'No sample'}
                   state={displayState}
                   treatmentActive={hasTreatment}
                 />
+                {hasTreatment && treatmentLabel ? (
+                  <div className="dish-treatment-status" role="status" aria-label="Experimental dish treatment status">
+                    <span className="dish-treatment-badge">Treatment active</span>
+                    <span className="dish-treatment-name">{treatmentLabel}</span>
+                    {treatmentOutcome && (
+                      <span className="dish-treatment-outcome">
+                        {THERAPEUTIC_INTENDED_OUTCOME_LABELS[treatmentOutcome]}
+                      </span>
+                    )}
+                    <span className="text-muted dish-treatment-note">Conceptual / educational — not a real vector</span>
+                  </div>
+                ) : (
+                  <p className="dish-treatment-status untreated" role="status">No treatment on experimental dish</p>
+                )}
               </div>
               {controlActive && setup?.control && (
                 <div className="culture-panel control">
@@ -626,9 +699,18 @@ export function VirtualLabPage() {
                     organismName={setup.control.displayName}
                     state={controlDisplayState}
                   />
+                  <p className="dish-treatment-status untreated" role="status">
+                    Untreated control · matched sample {setup.control.catalogueEntryId === setup.catalogueEntryId ? '✓' : '(sample mismatch)'}
+                  </p>
                 </div>
               )}
             </div>
+            {!envMatch.ok && (
+              <p className="warn-text env-mismatch-banner" role="alert">
+                Experimental and control conditions differ ({envMatch.mismatches.join('; ')}).
+                Treatment-effect comparisons are blocked until environments match. Use “Use baseline as control” or change env under auto-baseline.
+              </p>
+            )}
             <div className="env-readout" aria-label="Environment readout">
               {sim && (
                 <>
@@ -645,8 +727,10 @@ export function VirtualLabPage() {
 
         <Card title="Organism Selection">
           <BiologicalSampleSelector
+            key={setup?.catalogueEntryId ?? selectedCatalogueId}
             selectedId={selectedCatalogueId}
             sampleDisplayId={setup?.sampleId}
+            dishCategory={setup?.catalogueCategory ?? catalogueEntry?.category}
             onSelect={handleSelectOrganism}
           />
 
@@ -815,6 +899,12 @@ export function VirtualLabPage() {
               experimentalSim={sim}
               controlSim={controlSim}
               designs={state.therapeuticDesigns}
+              comparisonAllowed={envMatch.ok}
+              comparisonBlockReason={
+                envMatch.ok
+                  ? undefined
+                  : `Experimental and control conditions differ (${envMatch.mismatches.join('; ')}). Align environments before comparing treatment effects.`
+              }
               onRecordBaseline={handleRecordDishBaseline}
               onApplyVector={handleApplyVector}
               onRunSteps={handleFlowRunSteps}

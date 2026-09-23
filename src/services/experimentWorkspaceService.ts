@@ -43,13 +43,75 @@ export function createDefaultControl(
   controlId: string,
   baseline: EnvironmentConditions,
 ): ControlConfiguration {
+  // Matched untreated control: same sample identity and environment as the experimental dish.
+  // Do NOT force pH/nutrients — mismatched conditions invalidate treatment isolation.
   return {
     mode: 'auto-baseline',
     sampleId: controlId,
     displayName: `${entry.name} (control)`,
     catalogueEntryId: entry.id,
-    environment: { ...baseline, ph: 7, nutrientAvailability: 100 },
+    environment: { ...baseline },
     updatedAt: new Date().toISOString(),
+  };
+}
+
+/** True when experimental and control environments match on comparison-critical fields. */
+export function environmentsMatchForComparison(
+  a: EnvironmentConditions,
+  b: EnvironmentConditions,
+  epsilon = 1e-6,
+): { ok: true } | { ok: false; mismatches: string[] } {
+  const keys: (keyof EnvironmentConditions)[] = [
+    'temperature',
+    'ph',
+    'oxygen',
+    'carbonDioxide',
+    'humidity',
+    'pressure',
+    'salinity',
+    'nutrientAvailability',
+    'radiationExposure',
+  ];
+  const mismatches: string[] = [];
+  for (const key of keys) {
+    const av = a[key];
+    const bv = b[key];
+    if (typeof av === 'number' && typeof bv === 'number') {
+      if (Math.abs(av - bv) > epsilon) mismatches.push(`${key}: experimental ${av} vs control ${bv}`);
+    } else if (av !== bv) {
+      mismatches.push(`${String(key)}: experimental ${String(av)} vs control ${String(bv)}`);
+    }
+  }
+  return mismatches.length === 0 ? { ok: true } : { ok: false, mismatches };
+}
+
+/** Keep auto-baseline control environment locked to the experimental dish. */
+export function syncMatchedControlEnvironment(
+  setup: ActiveExperimentSetup,
+  experimentalEnv: EnvironmentConditions,
+): ActiveExperimentSetup {
+  if (setup.control.mode === 'none-not-applicable') return setup;
+  if (setup.control.mode === 'custom') return setup;
+  const match = environmentsMatchForComparison(experimentalEnv, setup.control.environment);
+  if (match.ok) return setup;
+  const now = new Date().toISOString();
+  return {
+    ...setup,
+    control: {
+      ...setup.control,
+      mode: 'auto-baseline',
+      environment: { ...experimentalEnv },
+      updatedAt: now,
+    },
+    updatedAt: now,
+    history: [
+      ...setup.history,
+      {
+        timestamp: now,
+        type: 'control-sync',
+        detail: `Matched untreated control environment to experimental dish (${match.mismatches.join('; ')})`,
+      },
+    ],
   };
 }
 

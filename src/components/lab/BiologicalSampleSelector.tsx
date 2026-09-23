@@ -6,6 +6,8 @@ import { biologicalSystemTypeLabel } from '../../services/organismSimulationProf
 interface BiologicalSampleSelectorProps {
   selectedId: string;
   sampleDisplayId?: string;
+  /** When set, category UI is forced to match the dish catalogue entry */
+  dishCategory?: string;
   onSelect: (entry: OrganismCatalogueEntry) => void;
 }
 
@@ -13,37 +15,48 @@ function isSimReady(entry: OrganismCatalogueEntry): boolean {
   return entry.simulationReady ?? entry.compatibleModules.includes('virtual-lab');
 }
 
-export function BiologicalSampleSelector({ selectedId, sampleDisplayId, onSelect }: BiologicalSampleSelectorProps) {
+export function BiologicalSampleSelector({
+  selectedId,
+  sampleDisplayId,
+  dishCategory,
+  onSelect,
+}: BiologicalSampleSelectorProps) {
   const selected = organismIndex.getById(selectedId);
-  const [category, setCategory] = useState(selected?.category ?? 'bacteria');
+  // Category must stay locked to the dish sample so the dropdown never shows e.g. Bacteria/B. subtilis
+  // while the culture dish is HeLa.
+  const syncedCategory = selected?.category ?? dishCategory ?? 'bacteria';
+  const [browseCategory, setBrowseCategory] = useState(syncedCategory);
   const [search, setSearch] = useState('');
   const [browseOpen, setBrowseOpen] = useState(false);
 
-  // Keep category in sync when navigating away/back restores a persisted sample
   useEffect(() => {
-    if (selected?.category && selected.category !== category) {
-      setCategory(selected.category);
+    if (syncedCategory && syncedCategory !== browseCategory) {
+      setBrowseCategory(syncedCategory);
+      setSearch('');
     }
-  }, [selected?.id, selected?.category]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedId, syncedCategory]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const page = useMemo(() => {
-    const result = organismIndex.query({
-      category,
+    return organismIndex.query({
+      category: browseCategory,
       search: search.trim() || undefined,
       page: 1,
       pageSize: 48,
       simulationReady: true,
     });
-    return result;
-  }, [category, search]);
+  }, [browseCategory, search]);
 
   const options = useMemo(() => {
     const items = [...page.items];
     if (selected && isSimReady(selected) && !items.some((e) => e.id === selected.id)) {
       items.unshift(selected);
     }
+    // Guarantee the <select> always has a matching option for selectedId
+    if (selected && !items.some((e) => e.id === selectedId)) {
+      items.unshift(selected);
+    }
     return items;
-  }, [page.items, selected]);
+  }, [page.items, selected, selectedId]);
 
   const categories = ORGANISM_CATEGORIES.filter((c) => {
     if (c.value === 'all') return false;
@@ -65,14 +78,29 @@ export function BiologicalSampleSelector({ selectedId, sampleDisplayId, onSelect
 
       <p className="text-muted bio-sim-hint">
         Virtual Lab lists simulation-ready organisms and cell lines only. Tumour disease taxonomy stays reference-only.
+        Category stays synchronised with the sample loaded in the dish.
       </p>
 
       <label className="bio-field">
         <span className="bio-field-label">Category</span>
         <select
           className="select-input"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
+          value={browseCategory}
+          onChange={(e) => {
+            const next = e.target.value;
+            setBrowseCategory(next);
+            setSearch('');
+            // If the dish sample is not in the newly chosen category, pick the first sim-ready entry
+            // in that category so dropdown and dish cannot diverge.
+            const first = organismIndex.query({
+              category: next,
+              simulationReady: true,
+              pageSize: 1,
+            }).items[0];
+            if (first && selected?.category !== next) {
+              onSelect(first);
+            }
+          }}
           aria-label="Biological sample category"
         >
           {categories.map((c) => (
@@ -97,10 +125,13 @@ export function BiologicalSampleSelector({ selectedId, sampleDisplayId, onSelect
         <span className="bio-field-label">Select sample</span>
         <select
           className="select-input"
-          value={selectedId}
+          value={options.some((o) => o.id === selectedId) ? selectedId : (options[0]?.id ?? '')}
           onChange={(e) => {
             const entry = organismIndex.getById(e.target.value);
-            if (entry && isSimReady(entry)) onSelect(entry);
+            if (entry && isSimReady(entry)) {
+              setBrowseCategory(entry.category);
+              onSelect(entry);
+            }
           }}
           aria-label="Select biological sample"
         >
@@ -123,7 +154,10 @@ export function BiologicalSampleSelector({ selectedId, sampleDisplayId, onSelect
               <button
                 type="button"
                 className={`bio-sample-item ${selectedId === entry.id ? 'active' : ''}`}
-                onClick={() => onSelect(entry)}
+                onClick={() => {
+                  setBrowseCategory(entry.category);
+                  onSelect(entry);
+                }}
                 aria-pressed={selectedId === entry.id}
               >
                 <span className="bio-sample-name">{entry.name}</span>
