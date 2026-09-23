@@ -2234,7 +2234,8 @@ input[type="range"] {
 
 /* Tumour Cell Movement readout (dedicated educational simulation panel) */
 .tumour-movement-readout {
-  margin-top: 20px;
+  margin-top: 0;
+  margin-bottom: 20px;
   padding: 16px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);

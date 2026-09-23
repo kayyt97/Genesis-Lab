@@ -40,7 +40,7 @@ import {
   environmentsMatchForComparison,
 } from '../services/experimentWorkspaceService';
 import { getSimulationProfile, assertSimulationAllowed } from '../services/organismSimulationProfile';
-import { buildScientificReport } from '../services/reportGenerator';
+import { buildScientificReport, ensureTumourMovementReportSection } from '../services/reportGenerator';
 import {
   createSimulation,
   simulationTick,
@@ -594,6 +594,23 @@ export function VirtualLabPage() {
     setActionFeedback('Scientific report generated. Preview is shown below — it will persist after refresh.');
   };
 
+  // Backfill Tumour Cell Movement into older persisted report drafts (no need to Start the sim).
+  useEffect(() => {
+    if (!setup || !state.reportDraft || !isTumourCellModel(setup.catalogueEntryId)) return;
+    const current = state.reportDraft.sections.find((s) => s.id === 'tumour-cell-movement');
+    const ensured = ensureTumourMovementReportSection(
+      state.reportDraft,
+      setup,
+      sim,
+      controlSim,
+      state.settings.replicateCount,
+    );
+    const next = ensured.sections.find((s) => s.id === 'tumour-cell-movement');
+    if (!current || current.content !== next?.content) {
+      dispatch({ type: 'SET_REPORT_DRAFT', payload: ensured });
+    }
+  }, [setup?.id, setup?.catalogueEntryId, setup?.attachedTherapeutic?.designId, sim?.currentTick, controlSim?.currentTick, state.settings.replicateCount]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSaveBaseline = () => {
     if (!sim) {
       setActionFeedback('No active simulation to save as baseline. Start or step the simulation first.');
@@ -633,15 +650,17 @@ export function VirtualLabPage() {
     ? `${setup.control.displayName}; T ${setup.control.environment.temperature}°C, pH ${setup.control.environment.ph}, O₂ ${setup.control.environment.oxygen}%; untreated${envMatch.ok ? '; matched to experimental' : '; MISMATCHED vs experimental'}`
     : 'No control';
 
+  // Gate on the active experiment’s cell model (not just the selector) so HeLa dishes show the readout.
   const movementReadout = useMemo(() => {
-    if (!isTumourCellModel(selectedCatalogueId) || !setup) return null;
+    if (!setup || !isTumourCellModel(setup.catalogueEntryId)) return null;
     const treatment = attachedTherapeutic ?? sim?.therapeuticTreatment ?? null;
     const baseSeed = setup.simulationSeed
       ?? sim?.seed
-      ?? deriveTumourExperimentSeed(treatment?.designId, selectedCatalogueId);
+      ?? deriveTumourExperimentSeed(treatment?.designId, setup.catalogueEntryId);
+    // Educational projection from the dish seed — visible without pressing Start.
     return buildTumourCellMovementReadout({
-      cellModelId: selectedCatalogueId,
-      cellModelName: catalogueEntry?.name ?? selectedCatalogueId,
+      cellModelId: setup.catalogueEntryId,
+      cellModelName: catalogueEntry?.name ?? setup.sampleDisplayName,
       experimentalEnv: sim?.environment ?? environmentFromSetup(setup),
       controlEnv: setup.control.environment,
       treatment,
@@ -651,7 +670,6 @@ export function VirtualLabPage() {
       liveControl: controlSim,
     });
   }, [
-    selectedCatalogueId,
     setup,
     attachedTherapeutic,
     sim,
@@ -921,6 +939,7 @@ export function VirtualLabPage() {
         </Card>
 
         <Card title="Measurements" className="span-2">
+          {movementReadout && <TumourCellMovementReadoutPanel readout={movementReadout} />}
           {setup && isTumourCellModel(setup.catalogueEntryId) && (
             <TumourTestFlowPanel
               setup={setup}
@@ -960,21 +979,18 @@ export function VirtualLabPage() {
               </div>
             </div>
           )}
-          {isTumourCellModel(selectedCatalogueId) && (
-            <>
-              {movementReadout && <TumourCellMovementReadoutPanel readout={movementReadout} />}
-              <TumourMetricsPanel
-                organismId={selectedCatalogueId}
-                organismName={catalogueEntry?.name ?? selectedCatalogueId}
-                experimental={displayState}
-                control={controlDisplayState}
-                experimentalSim={sim}
-                controlSim={controlSim}
-                treatment={attachedTherapeutic ?? sim?.therapeuticTreatment}
-                seed={setup?.simulationSeed ?? sim?.seed}
-                controlSummary={controlSummary}
-              />
-            </>
+          {setup && isTumourCellModel(setup.catalogueEntryId) && (
+            <TumourMetricsPanel
+              organismId={setup.catalogueEntryId}
+              organismName={catalogueEntry?.name ?? setup.sampleDisplayName}
+              experimental={displayState ?? sim?.organismState}
+              control={controlDisplayState ?? controlSim?.organismState}
+              experimentalSim={sim}
+              controlSim={controlSim}
+              treatment={attachedTherapeutic ?? sim?.therapeuticTreatment}
+              seed={setup.simulationSeed ?? sim?.seed}
+              controlSummary={controlSummary}
+            />
           )}
         </Card>
 

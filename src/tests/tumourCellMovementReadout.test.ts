@@ -332,4 +332,57 @@ describe('Tumour Cell Movement readout', () => {
     });
     expect(readout).toBeNull();
   });
+
+  test('idle HeLa dish (not started) still builds treated vs control movement readout', () => {
+    const entry = organismIndex.getById('ORG-HELA')!;
+    const design = makeDesign();
+    const setup = attachTherapeuticToSetup(createExperimentSetup(entry), design);
+    const seed = 2222;
+    const experimental = createSimulation('ORG-HELA', environmentFromSetup(setup), undefined, {
+      seed,
+      therapeuticTreatment: setup.attachedTherapeutic!,
+    });
+    const control = createSimulation('ORG-HELA', setup.control.environment, undefined, { seed });
+    expect(experimental.status).toBe('idle');
+    expect(experimental.currentTick).toBe(0);
+
+    const readout = buildTumourCellMovementReadout({
+      cellModelId: 'ORG-HELA',
+      cellModelName: entry.name,
+      experimentalEnv: environmentFromSetup(setup),
+      controlEnv: setup.control.environment,
+      treatment: setup.attachedTherapeutic,
+      baseSeed: seed,
+      replicateCount: 1,
+      liveExperimental: experimental,
+      liveControl: control,
+    })!;
+
+    expect(readout.educationalSimulationLabel).toBe(EDUCATIONAL_SIMULATION_LABEL);
+    expect(readout.treatedMovement).not.toBeNull();
+    expect(readout.controlMovement).not.toBeNull();
+    expect(readout.percentDifferenceVsControl).not.toBe('not measured');
+    expect(readout.treatedGroupLabel).toContain('Motility Concept Vector Alpha');
+    expect(readout.controlGroupLabel).toBe('Untreated control');
+    expect(readout.replicates[0]!.seed).toBe(seed);
+  });
+
+  test('ensureTumourMovementReportSection backfills older drafts without starting the sim', async () => {
+    const { ensureTumourMovementReportSection, buildScientificReport } = await import(
+      '../services/reportGenerator'
+    );
+    const entry = organismIndex.getById('ORG-HELA')!;
+    const setup = attachTherapeuticToSetup(createExperimentSetup(entry), makeDesign());
+    const full = buildScientificReport(setup, null, null, null, 'standard', '', 1);
+    const legacy = {
+      ...full,
+      sections: full.sections.filter((s) => s.id !== 'tumour-cell-movement'),
+    };
+    expect(legacy.sections.find((s) => s.id === 'tumour-cell-movement')).toBeUndefined();
+    const fixed = ensureTumourMovementReportSection(legacy, setup, null, null, 1);
+    const sec = fixed.sections.find((s) => s.id === 'tumour-cell-movement')!;
+    expect(sec.title).toBe('Tumour Cell Movement');
+    expect(sec.content).toContain(EDUCATIONAL_SIMULATION_LABEL);
+    expect(sec.content).toContain('Motility Concept Vector Alpha');
+  });
 });
