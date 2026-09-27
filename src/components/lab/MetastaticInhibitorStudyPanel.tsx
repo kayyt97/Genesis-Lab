@@ -81,8 +81,9 @@ export function MetastaticInhibitorStudyPanel({
           <details className="mi-param-sheet" open>
             <summary>Full candidate specification &amp; parameter sheet</summary>
             <p>
-              Exact name: <strong>{study.candidate.name}</strong> · id {study.candidate.id} · outcome{' '}
-              {study.candidate.intendedOutcome} · model {study.genesisLabVersion}
+              Exact name: <strong>{study.candidate.name}</strong> · study {study.studyId} · candidate id{' '}
+              {study.candidate.id} · outcome {study.candidate.intendedOutcome} · model {study.genesisLabVersion} ·
+              recorded {study.createdAt}
             </p>
             <table className="tumour-report-table" aria-label="Metastatic Inhibitor parameter sheet">
               <thead>
