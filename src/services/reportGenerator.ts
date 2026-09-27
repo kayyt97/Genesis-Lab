@@ -13,8 +13,13 @@ import {
   buildTumourCellMovementReadout,
   formatMovementReadoutForReport,
 } from './tumourCellMovementReadout';
+import {
+  buildTumourResponseMonitoring,
+  formatResponseMonitoringForReport,
+} from './tumourResponseMonitoring';
+import { GENESIS_LAB_VERSION } from './genesisLabVersion';
 
-export const GENESIS_LAB_VERSION = '0.5.0-phase5';
+export { GENESIS_LAB_VERSION };
 
 export interface ReportQualityFlag {
   id: string;
@@ -36,6 +41,7 @@ export function buildScientificReport(
   const now = new Date().toISOString();
   const comparison = computeComparison(expState, ctrlState, experimentalSim, controlSim, reportLevel);
   const movementSection = formatMovementSection(setup, experimentalSim, controlSim, replicateCount, reportLevel);
+  const responseSection = formatResponseSection(setup, experimentalSim, controlSim, reportLevel);
 
   const sections = [
     section('title', t('Title', reportLevel), setup.sampleDisplayName, 'user-entered'),
@@ -62,6 +68,12 @@ export function buildScientificReport(
       t('Tumour Cell Movement', reportLevel),
       movementSection.content,
       movementSection.source,
+    ),
+    section(
+      'tumour-response-monitoring',
+      t('Tumour Response Monitoring', reportLevel),
+      responseSection.content,
+      responseSection.source,
     ),
     section('tumour-comparison', t('Tumour-cell metric comparison', reportLevel), formatTumourComparison(setup, experimentalSim, controlSim, reportLevel), isTumourCellModel(setup.catalogueEntryId) && expState ? 'model-generated' : 'not-recorded'),
     section('control-comparison', t('Experimental vs control comparison', reportLevel), comparison.summary, comparison.source),
@@ -310,6 +322,83 @@ function formatMovementSection(
     };
   }
   return { content: formatMovementReadoutForReport(readout), source: 'model-generated' };
+}
+
+function formatResponseSection(
+  setup: ActiveExperimentSetup,
+  expSim: Simulation | null,
+  ctrlSim: Simulation | null,
+  level: ReportLanguageLevel,
+): { content: string; source: ScientificReport['sections'][0]['source'] } {
+  if (!isTumourCellModel(setup.catalogueEntryId)) {
+    return {
+      content: 'not measured — sample is not a simulation-ready tumour cell model',
+      source: 'not-recorded',
+    };
+  }
+  const monitoring = buildTumourResponseMonitoring({
+    cellModelId: setup.catalogueEntryId,
+    cellModelName: setup.sampleDisplayName,
+    experimental: expSim,
+    control: ctrlSim,
+    experimentalEnv: expSim?.environment ?? setup.environment,
+    controlEnv: setup.control.environment,
+    treatment: setup.attachedTherapeutic ?? expSim?.therapeuticTreatment ?? null,
+    baseline: setup.recordedBaseline ?? null,
+    savedAt: setup.pairedResponseSnapshot?.savedAt ?? null,
+  });
+  if (!monitoring) {
+    return { content: 'not measured', source: 'not-recorded' };
+  }
+  if (level === 'simple') {
+    const move = monitoring.channels.find((c) => c.key === 'movement');
+    return {
+      content: `Educational paired monitoring: movement ${move?.percentDifferenceVsControl ?? 'n/a'} vs control; invasion not assessed; ${monitoring.movementStatus ? `status ${monitoring.movementStatus.status}.` : ''} This does not mean metastasis was prevented.`,
+      source: 'model-generated',
+    };
+  }
+  return { content: formatResponseMonitoringForReport(monitoring), source: 'model-generated' };
+}
+
+/**
+ * Ensure a persisted report draft includes Tumour Response Monitoring
+ * (and keep Tumour Cell Movement in sync for older drafts).
+ */
+export function ensureTumourResponseReportSection(
+  report: ScientificReport,
+  setup: ActiveExperimentSetup,
+  experimentalSim: Simulation | null,
+  controlSim: Simulation | null,
+): ScientificReport {
+  const response = formatResponseSection(
+    setup,
+    experimentalSim,
+    controlSim,
+    report.reportLevel,
+  );
+  const sectionBody = section(
+    'tumour-response-monitoring',
+    t('Tumour Response Monitoring', report.reportLevel),
+    response.content,
+    response.source,
+  );
+  const idx = report.sections.findIndex((s) => s.id === 'tumour-response-monitoring');
+  if (idx >= 0) {
+    const sections = report.sections.slice();
+    sections[idx] = sectionBody;
+    return { ...report, sections, updatedAt: new Date().toISOString() };
+  }
+  const insertAt = report.sections.findIndex(
+    (s) =>
+      s.id === 'tumour-comparison'
+      || s.id === 'tumour-cell-movement'
+      || s.id === 'control-comparison'
+      || s.id === 'measurements',
+  );
+  const sections = report.sections.slice();
+  if (insertAt >= 0) sections.splice(insertAt + (sections[insertAt]?.id === 'tumour-cell-movement' ? 1 : 0), 0, sectionBody);
+  else sections.push(sectionBody);
+  return { ...report, sections, updatedAt: new Date().toISOString() };
 }
 
 /**
