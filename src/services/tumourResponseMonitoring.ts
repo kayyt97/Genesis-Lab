@@ -1,6 +1,6 @@
 /**
  * Tumour Response Monitoring — educational paired HeLa (treated vs untreated control).
- * Validates matched starting conditions; reports movement, invasion (not assessed),
+ * Validates matched starting conditions; reports movement, invasion (not measured),
  * population, and viability as distinct channels. Never claims metastasis prevented.
  */
 
@@ -32,8 +32,8 @@ export const NEVER_METASTASIS_PREVENTED =
 export const FEWER_CELLS_NOT_MOVEMENT_PROOF =
   'Fewer cells or a viability drop is not proof of reduced movement. Movement and viability are separate outcomes.';
 
-export const INVASION_NOT_ASSESSED =
-  'Invasion is not assessed — Genesis Lab does not model invasion for this dish.';
+export const INVASION_NOT_MEASURED =
+  'Invasion: not measured — Genesis Lab does not model invasion for this dish. Values are not derived from movement, cell count, or viability.';
 
 export const HEALTHY_CELL_NOT_ASSESSED =
   'Healthy-cell effects are not assessed — the model has no healthy/normal cell population channel.';
@@ -48,6 +48,7 @@ export type MovementStatusKind = 'slowed' | 'stopped-within-range' | 'continued'
 
 export type ChannelAssessment =
   | 'measured'
+  | 'not-measured'
   | 'not-assessed'
   | 'comparison-blocked';
 
@@ -211,6 +212,7 @@ function fmtMeasured(
   population = false,
 ): string {
   if (assessment === 'not-assessed') return 'not assessed';
+  if (assessment === 'not-measured') return 'not measured';
   if (assessment === 'comparison-blocked') return 'comparison blocked';
   if (value === null) return 'not measured';
   if (population) return `${formatPopulation(value)} (${SIMULATED_ESTIMATE_LABEL})`;
@@ -275,7 +277,6 @@ export function validatePairedRunMatch(opts: {
   const env = environmentsMatchForComparison(opts.experimentalEnv, opts.controlEnv);
   if (!env.ok) {
     for (const m of env.mismatches) {
-      // Focus messaging on the three user-called-out fields plus any other env drift
       mismatches.push(`environment ${m}`);
     }
   }
@@ -294,6 +295,18 @@ export function validatePairedRunMatch(opts: {
     mismatches.push(`random seed: treated ${seedT} vs control ${seedC}`);
   } else if ((opts.experimental || opts.control) && (seedT === null || seedC === null)) {
     mismatches.push('random seed: missing on one or both dishes');
+  }
+
+  // Baseline must share the same seed as the active treated/control pair
+  if (opts.baseline && seedT !== null && opts.baseline.seed !== seedT) {
+    mismatches.push(
+      `baseline seed ${opts.baseline.seed} vs active treated seed ${seedT} — not the same run`,
+    );
+  }
+  if (opts.baseline && seedC !== null && opts.baseline.seed !== seedC) {
+    mismatches.push(
+      `baseline seed ${opts.baseline.seed} vs active control seed ${seedC} — not the same run`,
+    );
   }
 
   // Version is a lab-wide constant; flag if a saved snapshot claimed a different build
@@ -470,6 +483,36 @@ function notAssessedChannel(
   };
 }
 
+function notMeasuredChannel(
+  key: ResponseChannelKey,
+  label: string,
+  note: string,
+): ResponseChannelResult {
+  return {
+    key,
+    label,
+    assessment: 'not-measured',
+    unit: '',
+    treatedStart: null,
+    treatedEnd: null,
+    controlStart: null,
+    controlEnd: null,
+    treatedDelta: null,
+    controlDelta: null,
+    percentDifferenceVsControl: 'not measured',
+    displayTreatedStart: 'not measured',
+    displayTreatedEnd: 'not measured',
+    displayControlStart: 'not measured',
+    displayControlEnd: 'not measured',
+    displayTreatedDelta: 'not measured',
+    displayControlDelta: 'not measured',
+    chartTreated: [],
+    chartControl: [],
+    timeSeries: [],
+    note,
+  };
+}
+
 /**
  * Build the Tumour Response Monitoring view for Virtual Lab, report, and export.
  */
@@ -539,7 +582,7 @@ export function buildTumourResponseMonitoring(opts: {
       comparisonAllowed: match.ok,
       note: FEWER_CELLS_NOT_MOVEMENT_PROOF,
     }),
-    notAssessedChannel('invasion', 'Invasion', INVASION_NOT_ASSESSED),
+    notMeasuredChannel('invasion', 'Invasion', INVASION_NOT_MEASURED),
     buildMeasuredChannel({
       key: 'population',
       label: 'Cell population',
@@ -609,7 +652,7 @@ export function buildTumourResponseMonitoring(opts: {
       'All values are simulated educational estimates — not wet-lab measurements.',
       NEVER_METASTASIS_PREVENTED,
       FEWER_CELLS_NOT_MOVEMENT_PROOF,
-      INVASION_NOT_ASSESSED,
+      INVASION_NOT_MEASURED,
       HEALTHY_CELL_NOT_ASSESSED,
       'Movement, invasion, population/growth, and viability are distinct measures and must not be substituted for one another.',
       'The matched control receives no conceptual therapeutic; treatment should be the only difference.',
@@ -691,6 +734,9 @@ export function formatResponseMonitoringForReport(monitoring: TumourResponseMoni
     ...monitoring.channels.map((c) => {
       if (c.assessment === 'not-assessed') {
         return `${c.label}: not assessed — ${c.note}`;
+      }
+      if (c.assessment === 'not-measured') {
+        return `${c.label}: not measured — ${c.note}`;
       }
       return `${c.label}: treated start ${c.displayTreatedStart} → end ${c.displayTreatedEnd} (Δ ${c.displayTreatedDelta}); control start ${c.displayControlStart} → end ${c.displayControlEnd} (Δ ${c.displayControlDelta}); % vs control ${c.percentDifferenceVsControl}`;
     }),

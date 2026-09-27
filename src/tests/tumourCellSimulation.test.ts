@@ -371,6 +371,9 @@ describe('tumour-cell therapeutic simulation', () => {
     setup = attachTherapeuticToSetup(setup, design);
     expect(environmentFromSetup(setup).ph).toBe(phAtBaseline);
     expect(setup.recordedBaseline!.organismState.cellMovement).toBe(baselineMovement);
+    // Applying the design must not retarget the matched seed away from the baseline
+    expect(setup.simulationSeed).toBe(seed);
+    expect(setup.recordedBaseline!.seed).toBe(seed);
 
     experimental = {
       ...experimental,
@@ -389,20 +392,26 @@ describe('tumour-cell therapeutic simulation', () => {
       baseline: {
         timeHours: setup.recordedBaseline!.timeHours,
         organismState: setup.recordedBaseline!.organismState,
+        seed: setup.recordedBaseline!.seed,
       },
       after: experimental.organismState,
       control: control.organismState,
       treatment: setup.attachedTherapeutic,
       seed: setup.recordedBaseline!.seed,
+      activeSeed: experimental.seed,
       elapsedAfterHours: experimental.timeHours,
     });
 
     expect(result.designName).toBe('Flow motility vector');
     expect(result.intendedOutcome).toBe('Reduce cell movement');
+    expect(result.seedMatched).toBe(true);
+    expect(result.seed).toBe(seed);
+    expect(result.activeSeed).toBe(seed);
     expect(result.elapsedAfterHours).toBeGreaterThan(result.baselineTimeHours);
     expect(result.elapsedSinceBaselineHours).toBeGreaterThan(0);
     expect(result.howCalculated.some((h) => h.includes('% change from baseline'))).toBe(true);
     expect(result.howCalculated.some((h) => h.includes('simulated educational estimates'))).toBe(true);
+    expect(result.howCalculated.some((h) => h.includes(`Matched seed ${seed}`))).toBe(true);
 
     const movement = result.rows.find((r) => r.key === 'cellMovement')!;
     expect(movement.unit).toBe('%');
@@ -417,6 +426,10 @@ describe('tumour-cell therapeutic simulation', () => {
     expect(movement.note).toContain('viability is not evidence of reduced movement');
     expect(experimental.organismState.cellMovement!).toBeLessThan(baselineMovement);
     expect(experimental.organismState.cellMovement!).toBeLessThan(control.organismState.cellMovement!);
+
+    const invasion = result.rows.find((r) => r.key === 'invasion')!;
+    expect(invasion.after).toBe('not measured');
+    expect(invasion.pctDifferenceVsControl).toBe('not measured');
   });
 
   test('formatPercentDelta never shows −0.0', () => {

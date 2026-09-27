@@ -38,18 +38,52 @@ export function isTumourCellModel(organismId: string): boolean {
   );
 }
 
-/** Stable seed derived from design id + cell id + optional base seed */
+/** Stable seed for a tumour experiment.
+ * When `baseSeed` is already committed (dish / baseline), preserve it so applying a
+ * design does not silently change the matched treated/control/baseline seed.
+ * Only derive from design+cell when no seed has been committed yet.
+ */
 export function deriveTumourExperimentSeed(
   designId: string | undefined,
   cellModelId: string,
   baseSeed?: number,
 ): number {
-  let h = (baseSeed ?? 42) >>> 0;
+  if (baseSeed !== undefined && baseSeed !== null) {
+    const preserved = (baseSeed >>> 0) || 1;
+    return preserved;
+  }
+  let h = 42 >>> 0;
   const str = `${designId ?? 'none'}::${cellModelId}`;
   for (let i = 0; i < str.length; i++) {
     h = Math.imul(h ^ str.charCodeAt(i), 0x5bd1e995) >>> 0;
   }
   return h || 1;
+}
+
+/**
+ * Resolve the single matched seed for baseline + treated + untreated control.
+ * Preference: recorded baseline seed → setup.simulationSeed → derive from design/cell.
+ */
+export function resolvePairedExperimentSeed(
+  setup: {
+    catalogueEntryId: string;
+    simulationSeed?: number;
+    recordedBaseline?: { seed: number } | null;
+  },
+  designId?: string,
+): number {
+  if (setup.recordedBaseline?.seed != null) return setup.recordedBaseline.seed;
+  if (setup.simulationSeed != null) return setup.simulationSeed;
+  return deriveTumourExperimentSeed(designId, setup.catalogueEntryId);
+}
+
+/** True when baseline seed matches the active paired-run seed. */
+export function baselineSeedMatchesActive(
+  baselineSeed: number | null | undefined,
+  activeSeed: number | null | undefined,
+): boolean {
+  if (baselineSeed == null || activeSeed == null) return false;
+  return baselineSeed === activeSeed;
 }
 
 export function therapeuticConfigFromDesign(design: TherapeuticDesign): TherapeuticTreatmentConfig {
@@ -298,7 +332,7 @@ export function formatMetricDisplay(reading: EducationalMetricReading): string {
 }
 
 export interface BeforeAfterMetricRow {
-  key: EducationalMetricReading['key'];
+  key: EducationalMetricReading['key'] | 'invasion';
   metric: string;
   unit: string;
   baseline: string;
@@ -317,6 +351,10 @@ export interface BeforeAfterResult {
   designName: string | null;
   intendedOutcome: string | null;
   seed: number;
+  /** Active treated/control seed when provided; equals seed when matched */
+  activeSeed: number;
+  seedMatched: boolean;
+  seedMismatchMessage: string | null;
   baselineTimeHours: number;
   elapsedAfterHours: number;
   elapsedSinceBaselineHours: number;
@@ -336,11 +374,14 @@ export function buildBeforeAfterResult(opts: {
   baseline: {
     timeHours: number;
     organismState: OrganismSimulationState;
+    seed?: number;
   };
   after: OrganismSimulationState;
   control: OrganismSimulationState | null;
   treatment?: TherapeuticTreatmentConfig | null;
   seed: number;
+  /** Live paired-run seed (treated/control). When it differs from baseline seed, comparison is flagged. */
+  activeSeed?: number;
   elapsedAfterHours: number;
 }): BeforeAfterResult {
   const outcome = opts.treatment?.intendedOutcome;
@@ -350,6 +391,13 @@ export function buildBeforeAfterResult(opts: {
   const effective = strengths
     ? strengths.delivery * strengths.potency * strengths.selectivity * (1 - strengths.drag * 0.5)
     : null;
+
+  const baselineSeed = opts.baseline.seed ?? opts.seed;
+  const activeSeed = opts.activeSeed ?? opts.seed;
+  const seedMatched = baselineSeedMatchesActive(baselineSeed, activeSeed);
+  const seedMismatchMessage = seedMatched
+    ? null
+    : `Seed mismatch: baseline seed ${baselineSeed} ≠ active paired seed ${activeSeed}. Do not treat these as the same run — record a new baseline or re-apply the vector with the matched seed.`;
 
   const baselineM = readEducationalMetrics(opts.baseline.organismState, opts.cellModelId, outcome);
   const afterM = readEducationalMetrics(opts.after, opts.cellModelId, outcome);
@@ -397,6 +445,22 @@ export function buildBeforeAfterResult(opts: {
     };
   });
 
+  // Invasion is not modelled — surface explicitly as not measured (never invent from movement/population/viability).
+  rows.push({
+    key: 'invasion',
+    metric: 'Invasion',
+    unit: '—',
+    baseline: 'not measured',
+    after: 'not measured',
+    control: 'not measured',
+    pctChangeFromBaseline: 'not measured',
+    pctDifferenceVsControl: 'not measured',
+    calculation:
+      'Invasion: not measured — Genesis Lab has no separate invasion model; values are not derived from movement, cell count, or viability.',
+    note: 'This simulation cannot establish that metastasis was prevented.',
+    disclaimer: SIMULATED_ESTIMATE_LABEL,
+  });
+
   const outcomeLabel = outcome
     ? (outcome === 'reduce-movement'
       ? 'Reduce cell movement'
@@ -410,7 +474,10 @@ export function buildBeforeAfterResult(opts: {
     cellModelName: opts.cellModelName,
     designName: opts.treatment?.designName ?? null,
     intendedOutcome: outcomeLabel,
-    seed: opts.seed,
+    seed: baselineSeed,
+    activeSeed,
+    seedMatched,
+    seedMismatchMessage,
     baselineTimeHours: opts.baseline.timeHours,
     elapsedAfterHours: opts.elapsedAfterHours,
     elapsedSinceBaselineHours: Math.max(0, opts.elapsedAfterHours - opts.baseline.timeHours),
@@ -423,11 +490,20 @@ export function buildBeforeAfterResult(opts: {
       '% difference vs untreated control = ((after − control) / control) × 100.',
       'Elapsed simulation time is in simulated hours (model clock), not wall-clock time.',
       'Conceptual vector settings (uptake, therapeutic effect, targeting, clearance, off-target proxies) scale an educational “effective strength”; they do not produce a real vector construct.',
+      seedMatched
+        ? `Matched seed ${activeSeed} is shared by baseline, treated dish, and untreated control.`
+        : (seedMismatchMessage as string),
+      'Invasion: not measured — no separate invasion channel exists in this model.',
     ],
     limitations: [
       'Values do not predict real biological efficacy or clinical outcomes.',
       'Unsupported metrics appear as “not measured” rather than invented results.',
       'A viability change must never be read as proof of reduced cell movement.',
+      'Invasion is not measured and must not be inferred from movement, population, or viability.',
+      'Reduced movement in this dish must never be labelled “metastasis prevented”.',
+      ...(seedMatched
+        ? []
+        : ['Baseline and active run seeds differ — re-record baseline before trusting this comparison.']),
     ],
     disclaimer: SIMULATED_ESTIMATE_LABEL,
   };
