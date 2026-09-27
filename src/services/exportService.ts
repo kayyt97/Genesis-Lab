@@ -11,6 +11,12 @@ import {
   responseMonitoringToCsvRows,
   responseMonitoringToExportPayload,
 } from './tumourResponseMonitoring';
+import {
+  loadMetastaticInhibitorStudy,
+  metastaticInhibitorStudyToCsvRows,
+  metastaticInhibitorStudyToExportPayload,
+  type MetastaticInhibitorStudy,
+} from './metastaticInhibitorCandidate';
 import { isTumourCellModel } from './tumourCellSimulation';
 
 export interface ExportProvenance {
@@ -97,6 +103,10 @@ export function exportExperimentCsv(
   if (response) {
     rows.push(...responseMonitoringToCsvRows(response));
   }
+  const mi = loadMetastaticInhibitorStudy();
+  if (mi) {
+    rows.push(...metastaticInhibitorStudyToCsvRows(mi));
+  }
   const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
   downloadTextFile(`${setup.sampleId}_results.csv`, csv, 'text/csv');
 }
@@ -107,9 +117,11 @@ export function exportExperimentJson(
   controlSim: Simulation | null,
   provenance: ExportProvenance,
   replicateCount = 1,
+  metastaticInhibitorStudy?: MetastaticInhibitorStudy | null,
 ) {
   const movementReadout = buildMovementExport(setup, sim, controlSim, replicateCount);
   const responseMonitoring = buildResponseExport(setup, sim, controlSim);
+  const mi = metastaticInhibitorStudy ?? loadMetastaticInhibitorStudy();
   downloadTextFile(
     `${setup.id}_experiment.json`,
     JSON.stringify({
@@ -121,6 +133,7 @@ export function exportExperimentJson(
       tumourResponseMonitoring: responseMonitoring
         ? responseMonitoringToExportPayload(responseMonitoring)
         : null,
+      metastaticInhibitorStudy: mi ? metastaticInhibitorStudyToExportPayload(mi) : null,
     }, null, 2),
     'application/json',
   );

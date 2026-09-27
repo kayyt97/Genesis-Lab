@@ -21,12 +21,25 @@ import { TumourMetricsPanel } from '../components/lab/TumourMetricsPanel';
 import { TumourCellMovementReadoutPanel } from '../components/lab/TumourCellMovementReadoutPanel';
 import { TumourResponseMonitoringPanel } from '../components/lab/TumourResponseMonitoringPanel';
 import { TumourTestFlowPanel } from '../components/lab/TumourTestFlowPanel';
+import { MetastaticInhibitorStudyPanel } from '../components/lab/MetastaticInhibitorStudyPanel';
 import { buildTumourCellMovementReadout } from '../services/tumourCellMovementReadout';
 import {
   buildTumourResponseMonitoring,
   savePairedResponseOnSetup,
   toPairedResponseSnapshot,
 } from '../services/tumourResponseMonitoring';
+import {
+  EDUCATIONAL_NO_CLINICAL_NOTICE,
+  METASTATIC_INHIBITOR_NAME,
+  getMetastaticInhibitorDesign,
+  loadMetastaticInhibitorStudy,
+  metastaticInhibitorStudyToCsvRows,
+  metastaticInhibitorStudyToExportPayload,
+  persistMetastaticInhibitorStudy,
+  runMetastaticInhibitorStudy,
+  type MetastaticInhibitorStudy,
+} from '../services/metastaticInhibitorCandidate';
+import { downloadTextFile } from '../services/exportService';
 import {
   loadTherapeuticDesignsFromStorage,
   sanitizeTherapeuticDesign,
@@ -126,6 +139,9 @@ export function VirtualLabPage() {
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [reportLevel, setReportLevel] = useState<ReportLanguageLevel>('standard');
   const [pendingRole, setPendingRole] = useState<MoleculeTransferRole | null>(null);
+  const [miStudy, setMiStudy] = useState<MetastaticInhibitorStudy | null>(() => loadMetastaticInhibitorStudy());
+  const [miFeedback, setMiFeedback] = useState<string | null>(null);
+  const [miBusy, setMiBusy] = useState(false);
 
   const sim = state.activeSimulation;
   const controlSim = state.controlSimulation;
@@ -621,13 +637,27 @@ export function VirtualLabPage() {
       return;
     }
     const project = state.projects.find((p) => p.id === state.settings.activeProjectId) ?? null;
-    dispatch({ type: 'SET_REPORT_DRAFT', payload: buildScientificReport(setup, sim, controlSim, project, level, '', state.settings.replicateCount) });
+    const report = buildScientificReport(
+      setup,
+      sim,
+      controlSim,
+      project,
+      level,
+      '',
+      state.settings.replicateCount,
+      miStudy,
+    );
+    dispatch({ type: 'SET_REPORT_DRAFT', payload: report });
     setReportLevel(level);
     if (setup.lifecycle === 'active' || setup.lifecycle === 'ready') {
       dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: { ...setup, lifecycle: 'completed', completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } });
     }
     setShowReport(true);
-    setActionFeedback('Scientific report generated. Preview is shown below — it will persist after refresh.');
+    setActionFeedback(
+      miStudy
+        ? `Scientific report generated including ${METASTATIC_INHIBITOR_NAME} study ${miStudy.studyId}. Preview persists after refresh.`
+        : 'Scientific report generated. Preview is shown below — it will persist after refresh.',
+    );
   };
 
   // Backfill Tumour Cell Movement + Response Monitoring into older persisted report drafts.
@@ -760,6 +790,75 @@ export function VirtualLabPage() {
         ? `Paired tumour response comparison saved. It will reopen after refresh (seed ${snapshot.seed ?? 'n/a'}). Educational simulation only — not evidence a real treatment works.`
         : `Paired comparison saved with mismatch flags (${snapshot.mismatches.join('; ')}). Fix matching settings before treating this as a clean control comparison.`,
     );
+  };
+
+  const ensureMetastaticInhibitorSaved = () => {
+    const design = getMetastaticInhibitorDesign();
+    if (!state.therapeuticDesigns.some((d) => d.id === design.id || d.name === METASTATIC_INHIBITOR_NAME)) {
+      const next = [...state.therapeuticDesigns, design];
+      dispatch({ type: 'ADD_THERAPEUTIC', payload: design });
+      import('../services/therapeuticDesignPersistence').then(({ persistTherapeuticDesigns }) => {
+        persistTherapeuticDesigns(next);
+      });
+    }
+    return design;
+  };
+
+  const handleRunMetastaticInhibitorStudy = () => {
+    setMiBusy(true);
+    setMiFeedback(null);
+    try {
+      ensureMetastaticInhibitorSaved();
+      const env = sim?.environment ?? (setup ? environmentFromSetup(setup) : undefined);
+      const study = runMetastaticInhibitorStudy({
+        cellModelId: setup?.catalogueEntryId ?? 'ORG-HELA',
+        cellModelName: catalogueEntry?.name ?? setup?.sampleDisplayName ?? 'HeLa cells',
+        environment: env,
+        baseSeed: setup?.simulationSeed ?? sim?.seed ?? 42,
+        seedCount: Math.max(5, state.settings.replicateCount),
+        ticks: 16,
+      });
+      setMiStudy(study);
+      const saved = persistMetastaticInhibitorStudy(study);
+      setMiFeedback(
+        saved.ok
+          ? `Study complete: ${study.runs.length} runs across ${study.seeds.length} seeds and ${study.strengthLevels.length} strengths. Saved for reopen. ${EDUCATIONAL_NO_CLINICAL_NOTICE}.`
+          : `Study complete but save failed: ${saved.error}`,
+      );
+    } catch (e) {
+      setMiFeedback(e instanceof Error ? e.message : 'Study failed');
+    } finally {
+      setMiBusy(false);
+    }
+  };
+
+  const handleSaveMetastaticInhibitorStudy = () => {
+    if (!miStudy) {
+      setMiFeedback('Run the study first.');
+      return;
+    }
+    const saved = persistMetastaticInhibitorStudy(miStudy);
+    setMiFeedback(
+      saved.ok
+        ? `Saved “${METASTATIC_INHIBITOR_NAME}” study ${miStudy.studyId} — reopen after refresh.`
+        : `Save failed: ${saved.error}`,
+    );
+  };
+
+  const handleExportMetastaticJson = () => {
+    if (!miStudy) return;
+    downloadTextFile(
+      `${METASTATIC_INHIBITOR_NAME.replace(/\s+/g, '_')}_study.json`,
+      JSON.stringify(metastaticInhibitorStudyToExportPayload(miStudy), null, 2),
+      'application/json',
+    );
+  };
+
+  const handleExportMetastaticCsv = () => {
+    if (!miStudy) return;
+    const rows = metastaticInhibitorStudyToCsvRows(miStudy);
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    downloadTextFile(`${METASTATIC_INHIBITOR_NAME.replace(/\s+/g, '_')}_study.csv`, csv, 'text/csv');
   };
 
   return (
@@ -1070,6 +1169,15 @@ export function VirtualLabPage() {
         </Card>
 
         <Card title="Measurements" className="span-2">
+          <MetastaticInhibitorStudyPanel
+            study={miStudy}
+            onRunStudy={handleRunMetastaticInhibitorStudy}
+            onSaveStudy={handleSaveMetastaticInhibitorStudy}
+            onExportJson={handleExportMetastaticJson}
+            onExportCsv={handleExportMetastaticCsv}
+            feedback={miFeedback}
+            busy={miBusy}
+          />
           {responseMonitoring && (
             <TumourResponseMonitoringPanel
               monitoring={responseMonitoring}

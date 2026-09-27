@@ -2493,6 +2493,78 @@ input[type="range"] {
   }
 }
 
+/* Metastatic Inhibitor educational candidate */
+.mi-edu-banner {
+  display: inline-block;
+  margin: 0 0 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+}
+
+.mi-candidate-card,
+.mi-candidate-panel {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--bg-primary);
+}
+
+.mi-candidate-panel h3,
+.mi-candidate-card h3 {
+  margin: 0 0 8px;
+}
+
+.mi-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.mi-feedback {
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+
+.mi-param-sheet,
+.mi-run-table,
+.mi-aggregates,
+.mi-full-report {
+  margin: 12px 0;
+}
+
+.mi-table-scroll {
+  overflow-x: auto;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.mi-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.mi-methods {
+  font-size: 13px;
+}
+
+.mi-report-body {
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .mi-charts {
+    grid-template-columns: 1fr;
+  }
+}
+
 .tumour-metrics-heading {
   font-size: 15px;
   margin: 0 0 8px;

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -20,6 +20,11 @@ import {
   type PayloadEffectType,
   type TherapeuticIntendedOutcome,
 } from '../types/scientific';
+import { MetastaticInhibitorCandidateCard } from '../components/lab/MetastaticInhibitorCandidateCard';
+import {
+  METASTATIC_INHIBITOR_NAME,
+  getMetastaticInhibitorDesign,
+} from '../services/metastaticInhibitorCandidate';
 
 const SAFETY_NOTICE =
   'This module supports conceptual therapeutic modelling only. It does not output viable pathogen sequences, replication-competent designs, or wet-lab construction protocols.';
@@ -180,6 +185,53 @@ export function TherapeuticDesignPage() {
 
   const guidedResults = guidedQuery.trim() ? searchPathwayExplorer(guidedQuery) : [];
 
+  // Ensure the built-in Metastatic Inhibitor candidate is always available by exact name.
+  useEffect(() => {
+    const builtin = getMetastaticInhibitorDesign();
+    const exists = state.therapeuticDesigns.some(
+      (d) => d.id === builtin.id || d.name === METASTATIC_INHIBITOR_NAME,
+    );
+    if (exists) return;
+    const next = [...state.therapeuticDesigns, builtin];
+    const persist = saveTherapeuticDesignNow(next);
+    if (persist.ok) dispatch({ type: 'ADD_THERAPEUTIC', payload: builtin });
+  }, [state.therapeuticDesigns, dispatch]);
+
+  const loadMetastaticInhibitor = (design: TherapeuticDesign) => {
+    setForm({
+      name: design.name,
+      targetType: design.targetType,
+      targetDescription: design.targetDescription,
+      deliveryModel: design.deliveryModel,
+      payloadEffect: design.payloadEffect,
+      intendedOutcome: design.intendedOutcome,
+      targetCellModelId: design.targetCellModelId,
+      variables: { ...design.variables },
+      notes: design.notes,
+    });
+    setSaveFeedback(
+      `Loaded “${METASTATIC_INHIBITOR_NAME}” into the form. Educational simulation only — not evidence of clinical efficacy.`,
+    );
+  };
+
+  const saveAndSendMetastaticInhibitor = (design: TherapeuticDesign) => {
+    const nextDesigns = [
+      ...state.therapeuticDesigns.filter((d) => d.id !== design.id && d.name !== METASTATIC_INHIBITOR_NAME),
+      design,
+    ];
+    const persist = saveTherapeuticDesignNow(nextDesigns);
+    if (!persist.ok) {
+      setSaveFeedback(`Save failed: ${persist.error}`);
+      return;
+    }
+    dispatch({ type: 'ADD_THERAPEUTIC', payload: design });
+    sendToVirtualLab(dispatch, design.id, design.name, 'therapeutic', { therapeuticDesign: design });
+    setSaveFeedback(
+      `Saved “${METASTATIC_INHIBITOR_NAME}” and sent to Virtual Lab. Educational simulation — no evidence of clinical efficacy.`,
+    );
+    navigate('/virtual-lab');
+  };
+
   const save = () => {
     if (!form.targetDescription?.trim()) {
       setSaveFeedback('Add a target description before saving — even a short educational one.');
@@ -278,6 +330,13 @@ export function TherapeuticDesignPage() {
           <dd>A saved teaching artefact of your choices for Virtual Lab handoff and learning — not proof of safety or efficacy, and not a real vector construct.</dd>
         </dl>
       </AboutThisTool>
+
+      <Card title={`${METASTATIC_INHIBITOR_NAME} (built-in educational candidate)`}>
+        <MetastaticInhibitorCandidateCard
+          onLoadCandidate={loadMetastaticInhibitor}
+          onSendToVirtualLab={saveAndSendMetastaticInhibitor}
+        />
+      </Card>
 
       <Card title="Target Selection">
         <Button variant={guidedMode ? 'primary' : 'secondary'} onClick={() => setGuidedMode(!guidedMode)}>
