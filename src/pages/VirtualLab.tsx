@@ -19,8 +19,14 @@ import { CultureVisualisation } from '../components/lab/CultureVisualisation';
 import { ScientificReportPanel } from '../components/lab/ScientificReportPanel';
 import { TumourMetricsPanel } from '../components/lab/TumourMetricsPanel';
 import { TumourCellMovementReadoutPanel } from '../components/lab/TumourCellMovementReadoutPanel';
+import { TumourResponseMonitoringPanel } from '../components/lab/TumourResponseMonitoringPanel';
 import { TumourTestFlowPanel } from '../components/lab/TumourTestFlowPanel';
 import { buildTumourCellMovementReadout } from '../services/tumourCellMovementReadout';
+import {
+  buildTumourResponseMonitoring,
+  savePairedResponseOnSetup,
+  toPairedResponseSnapshot,
+} from '../services/tumourResponseMonitoring';
 import {
   loadTherapeuticDesignsFromStorage,
   sanitizeTherapeuticDesign,
@@ -44,7 +50,7 @@ import {
   environmentsMatchForComparison,
 } from '../services/experimentWorkspaceService';
 import { getSimulationProfile, assertSimulationAllowed } from '../services/organismSimulationProfile';
-import { buildScientificReport, ensureTumourMovementReportSection } from '../services/reportGenerator';
+import { buildScientificReport, ensureTumourMovementReportSection, ensureTumourResponseReportSection } from '../services/reportGenerator';
 import {
   createSimulation,
   simulationTick,
@@ -608,22 +614,27 @@ export function VirtualLabPage() {
     setActionFeedback('Scientific report generated. Preview is shown below — it will persist after refresh.');
   };
 
-  // Backfill Tumour Cell Movement into older persisted report drafts (no need to Start the sim).
+  // Backfill Tumour Cell Movement + Response Monitoring into older persisted report drafts.
   useEffect(() => {
     if (!setup || !state.reportDraft || !isTumourCellModel(setup.catalogueEntryId)) return;
-    const current = state.reportDraft.sections.find((s) => s.id === 'tumour-cell-movement');
-    const ensured = ensureTumourMovementReportSection(
+    let draft = ensureTumourMovementReportSection(
       state.reportDraft,
       setup,
       sim,
       controlSim,
       state.settings.replicateCount,
     );
-    const next = ensured.sections.find((s) => s.id === 'tumour-cell-movement');
-    if (!current || current.content !== next?.content) {
-      dispatch({ type: 'SET_REPORT_DRAFT', payload: ensured });
+    draft = ensureTumourResponseReportSection(draft, setup, sim, controlSim);
+    const movementChanged =
+      state.reportDraft.sections.find((s) => s.id === 'tumour-cell-movement')?.content
+      !== draft.sections.find((s) => s.id === 'tumour-cell-movement')?.content;
+    const responseChanged =
+      state.reportDraft.sections.find((s) => s.id === 'tumour-response-monitoring')?.content
+      !== draft.sections.find((s) => s.id === 'tumour-response-monitoring')?.content;
+    if (movementChanged || responseChanged || !state.reportDraft.sections.some((s) => s.id === 'tumour-response-monitoring')) {
+      dispatch({ type: 'SET_REPORT_DRAFT', payload: draft });
     }
-  }, [setup?.id, setup?.catalogueEntryId, setup?.attachedTherapeutic?.designId, sim?.currentTick, controlSim?.currentTick, state.settings.replicateCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [setup?.id, setup?.catalogueEntryId, setup?.attachedTherapeutic?.designId, setup?.pairedResponseSnapshot?.savedAt, sim?.currentTick, controlSim?.currentTick, state.settings.replicateCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSaveBaseline = () => {
     if (!sim) {
@@ -691,6 +702,49 @@ export function VirtualLabPage() {
     catalogueEntry?.name,
     state.settings.replicateCount,
   ]);
+
+  const responseMonitoring = useMemo(() => {
+    if (!setup || !isTumourCellModel(setup.catalogueEntryId)) return null;
+    const treatment = attachedTherapeutic ?? sim?.therapeuticTreatment ?? null;
+    return buildTumourResponseMonitoring({
+      cellModelId: setup.catalogueEntryId,
+      cellModelName: catalogueEntry?.name ?? setup.sampleDisplayName,
+      experimental: sim,
+      control: controlSim,
+      experimentalEnv: sim?.environment ?? environmentFromSetup(setup),
+      controlEnv: setup.control.environment,
+      treatment,
+      baseline: setup.recordedBaseline ?? null,
+      savedAt: setup.pairedResponseSnapshot?.savedAt ?? null,
+    });
+  }, [setup, attachedTherapeutic, sim, controlSim, catalogueEntry?.name]);
+
+  const handleSavePairedComparison = () => {
+    if (!setup || !responseMonitoring) {
+      setActionFeedback('Unable to save paired comparison — load a tumour cell dish first.');
+      return;
+    }
+    const snapshot = toPairedResponseSnapshot(
+      responseMonitoring,
+      attachedTherapeutic?.designId ?? sim?.therapeuticTreatment?.designId ?? null,
+    );
+    const updated = savePairedResponseOnSetup(setup, snapshot);
+    dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: updated });
+    if (state.reportDraft) {
+      const draft = ensureTumourResponseReportSection(
+        state.reportDraft,
+        updated,
+        sim,
+        controlSim,
+      );
+      dispatch({ type: 'SET_REPORT_DRAFT', payload: draft });
+    }
+    setActionFeedback(
+      snapshot.matchOk
+        ? `Paired tumour response comparison saved. It will reopen after refresh (seed ${snapshot.seed ?? 'n/a'}). Educational simulation only — not evidence a real treatment works.`
+        : `Paired comparison saved with mismatch flags (${snapshot.mismatches.join('; ')}). Fix matching settings before treating this as a clean control comparison.`,
+    );
+  };
 
   return (
     <div className="virtual-lab">
@@ -1000,6 +1054,19 @@ export function VirtualLabPage() {
         </Card>
 
         <Card title="Measurements" className="span-2">
+          {responseMonitoring && (
+            <TumourResponseMonitoringPanel
+              monitoring={responseMonitoring}
+              onSavePairedComparison={handleSavePairedComparison}
+              saveFeedback={
+                setup?.pairedResponseSnapshot
+                  ? (setup.pairedResponseSnapshot.matchOk
+                    ? 'Saved paired comparison is available after refresh.'
+                    : 'Saved comparison includes mismatch flags.')
+                  : null
+              }
+            />
+          )}
           {movementReadout && <TumourCellMovementReadoutPanel readout={movementReadout} />}
           {setup && isTumourCellModel(setup.catalogueEntryId) && (
             <TumourTestFlowPanel

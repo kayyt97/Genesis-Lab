@@ -6,6 +6,11 @@ import {
   movementReadoutToCsvRows,
   movementReadoutToExportPayload,
 } from './tumourCellMovementReadout';
+import {
+  buildTumourResponseMonitoring,
+  responseMonitoringToCsvRows,
+  responseMonitoringToExportPayload,
+} from './tumourResponseMonitoring';
 import { isTumourCellModel } from './tumourCellSimulation';
 
 export interface ExportProvenance {
@@ -88,6 +93,10 @@ export function exportExperimentCsv(
   if (movement) {
     rows.push(...movementReadoutToCsvRows(movement));
   }
+  const response = buildResponseExport(setup, sim, controlSim);
+  if (response) {
+    rows.push(...responseMonitoringToCsvRows(response));
+  }
   const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
   downloadTextFile(`${setup.sampleId}_results.csv`, csv, 'text/csv');
 }
@@ -100,6 +109,7 @@ export function exportExperimentJson(
   replicateCount = 1,
 ) {
   const movementReadout = buildMovementExport(setup, sim, controlSim, replicateCount);
+  const responseMonitoring = buildResponseExport(setup, sim, controlSim);
   downloadTextFile(
     `${setup.id}_experiment.json`,
     JSON.stringify({
@@ -108,6 +118,9 @@ export function exportExperimentJson(
       controlSimulation: controlSim,
       provenance,
       tumourCellMovement: movementReadout ? movementReadoutToExportPayload(movementReadout) : null,
+      tumourResponseMonitoring: responseMonitoring
+        ? responseMonitoringToExportPayload(responseMonitoring)
+        : null,
     }, null, 2),
     'application/json',
   );
@@ -130,6 +143,25 @@ function buildMovementExport(
     replicateCount,
     liveExperimental: sim,
     liveControl: controlSim,
+  });
+}
+
+function buildResponseExport(
+  setup: ActiveExperimentSetup,
+  sim: Simulation | null,
+  controlSim: Simulation | null,
+) {
+  if (!isTumourCellModel(setup.catalogueEntryId)) return null;
+  return buildTumourResponseMonitoring({
+    cellModelId: setup.catalogueEntryId,
+    cellModelName: setup.sampleDisplayName,
+    experimental: sim,
+    control: controlSim,
+    experimentalEnv: sim?.environment ?? setup.environment,
+    controlEnv: setup.control.environment,
+    treatment: setup.attachedTherapeutic ?? sim?.therapeuticTreatment ?? null,
+    baseline: setup.recordedBaseline ?? null,
+    savedAt: setup.pairedResponseSnapshot?.savedAt ?? null,
   });
 }
 

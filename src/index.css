@@ -2359,6 +2359,140 @@ input[type="range"] {
   }
 }
 
+/* Tumour Response Monitoring (paired HeLa treated vs control) */
+.tumour-response-monitor {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--bg-primary);
+}
+
+.tumour-response-header {
+  margin-bottom: 14px;
+}
+
+.tumour-response-title {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+
+.tumour-response-disclaimer {
+  font-size: 12px;
+  margin: 0;
+}
+
+.tumour-response-groups {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.tumour-response-match-ok {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  font-size: 13px;
+  border-left: 3px solid #66bb6a;
+  background: color-mix(in srgb, #66bb6a 8%, transparent);
+}
+
+.tumour-response-mismatch {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  font-size: 13px;
+  border-left: 3px solid #e57373;
+  background: color-mix(in srgb, #e57373 10%, transparent);
+}
+
+.tumour-response-mismatch ul {
+  margin: 8px 0 0;
+  padding-left: 1.2rem;
+}
+
+.tumour-response-movement-status {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+}
+
+.tumour-response-movement-status h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.tumour-response-channels {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.tumour-response-channel {
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+}
+
+.tumour-response-channel h4 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.tumour-response-channel.assessment-not-assessed {
+  opacity: 0.92;
+}
+
+.tumour-response-not-assessed {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.tumour-response-pct {
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.tumour-response-chart {
+  margin-top: 8px;
+}
+
+.tumour-response-channel-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+
+.tumour-response-save {
+  margin: 12px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.tumour-response-save-feedback {
+  margin: 0;
+  font-size: 13px;
+}
+
+.tumour-response-settings {
+  margin: 12px 0;
+  font-size: 13px;
+}
+
+.tumour-response-settings summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .tumour-response-groups {
+    grid-template-columns: 1fr;
+  }
+}
+
 .tumour-metrics-heading {
   font-size: 15px;
   margin: 0 0 8px;
