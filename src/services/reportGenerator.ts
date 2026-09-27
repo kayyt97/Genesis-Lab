@@ -18,6 +18,11 @@ import {
   formatResponseMonitoringForReport,
 } from './tumourResponseMonitoring';
 import { GENESIS_LAB_VERSION } from './genesisLabVersion';
+import {
+  formatMetastaticInhibitorReport,
+  loadMetastaticInhibitorStudy,
+  type MetastaticInhibitorStudy,
+} from './metastaticInhibitorCandidate';
 
 export { GENESIS_LAB_VERSION };
 
@@ -35,6 +40,7 @@ export function buildScientificReport(
   reportLevel: ReportLanguageLevel = 'standard',
   author = '',
   replicateCount = 1,
+  metastaticInhibitorStudy?: MetastaticInhibitorStudy | null,
 ): ScientificReport {
   const expState = experimentalSim?.organismState;
   const ctrlState = controlSim?.organismState;
@@ -42,6 +48,11 @@ export function buildScientificReport(
   const comparison = computeComparison(expState, ctrlState, experimentalSim, controlSim, reportLevel);
   const movementSection = formatMovementSection(setup, experimentalSim, controlSim, replicateCount, reportLevel);
   const responseSection = formatResponseSection(setup, experimentalSim, controlSim, reportLevel);
+  const miStudy = metastaticInhibitorStudy ?? loadMetastaticInhibitorStudy();
+  const miContent = miStudy
+    ? formatMetastaticInhibitorReport(miStudy)
+    : 'not recorded — run the Metastatic Inhibitor study in Virtual Lab to populate this section';
+  const miSource = miStudy ? 'model-generated' as const : 'not-recorded' as const;
 
   const sections = [
     section('title', t('Title', reportLevel), setup.sampleDisplayName, 'user-entered'),
@@ -74,6 +85,12 @@ export function buildScientificReport(
       t('Tumour Response Monitoring', reportLevel),
       responseSection.content,
       responseSection.source,
+    ),
+    section(
+      'metastatic-inhibitor-study',
+      t('Metastatic Inhibitor candidate study', reportLevel),
+      miContent,
+      miSource,
     ),
     section('tumour-comparison', t('Tumour-cell metric comparison', reportLevel), formatTumourComparison(setup, experimentalSim, controlSim, reportLevel), isTumourCellModel(setup.catalogueEntryId) && expState ? 'model-generated' : 'not-recorded'),
     section('control-comparison', t('Experimental vs control comparison', reportLevel), comparison.summary, comparison.source),
