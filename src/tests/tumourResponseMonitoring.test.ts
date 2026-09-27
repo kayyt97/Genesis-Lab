@@ -315,16 +315,16 @@ describe('tumourResponseMonitoring', () => {
 
   test('validatePairedRunMatch requires identical starting population', () => {
     const env = { ...defaultEnvironment };
-    let experimental = createSimulation('ORG-HELA', env, undefined, { seed: 11 });
-    let control = createSimulation('ORG-HELA', env, undefined, { seed: 11 });
-    experimental = {
-      ...experimental,
+    const experimental = createSimulation('ORG-HELA', env, undefined, { seed: 11 });
+    const control = createSimulation('ORG-HELA', env, undefined, { seed: 11 });
+    const baseline = {
+      recordedAt: '2026-09-27T00:00:00Z',
+      timeHours: 0,
+      tick: 0,
+      seed: 11,
       organismState: { ...experimental.organismState, population: 999_999 },
-    };
-    // Force divergent start by mutating control start via empty snapshots + different pop
-    control = {
-      ...control,
-      organismState: { ...control.organismState, population: 100_000 },
+      controlOrganismState: { ...control.organismState, population: 100_000 },
+      label: 'Divergent baseline populations',
     };
     const match = validatePairedRunMatch({
       experimental,
@@ -332,6 +332,8 @@ describe('tumourResponseMonitoring', () => {
       experimentalEnv: env,
       controlEnv: env,
       treatment: therapeuticConfigFromDesign(makeAntiMigrationDesign()),
+      baseline,
+      cellModelId: 'ORG-HELA',
     });
     expect(match.ok).toBe(false);
     expect(match.mismatches.some((m) => m.includes('starting cell count'))).toBe(true);
