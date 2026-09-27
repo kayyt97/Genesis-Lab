@@ -4,7 +4,7 @@ import type { OrganismCatalogueEntry } from '../catalogue/types';
 import type { TherapeuticDesign } from '../types/scientific';
 import { nextStableId } from './idGenerator';
 import { defaultEnvironment } from '../data/demoData';
-import { deriveTumourExperimentSeed, therapeuticConfigFromDesign } from './tumourCellSimulation';
+import { resolvePairedExperimentSeed, therapeuticConfigFromDesign } from './tumourCellSimulation';
 
 export function createExperimentSetup(
   entry: OrganismCatalogueEntry,
@@ -170,7 +170,10 @@ export function isTherapeuticDesignId(id: string): boolean {
 
 const SIMULATED_ESTIMATE_HINT = 'simulated educational estimate';
 
-/** Attach a saved conceptual therapeutic to the experimental dish only (control stays untreated). */
+/** Attach a saved conceptual therapeutic to the experimental dish only (control stays untreated).
+ * Preserves any committed matched seed (baseline / simulationSeed) so applying a design never
+ * silently retargets the random stream while keeping an earlier baseline.
+ */
 export function attachTherapeuticToSetup(
   setup: ActiveExperimentSetup,
   design: TherapeuticDesign,
@@ -182,7 +185,10 @@ export function attachTherapeuticToSetup(
     { id: design.id, name: design.name, formula: 'conceptual-therapeutic' },
     'treatment',
   );
-  const seed = deriveTumourExperimentSeed(design.id, setup.catalogueEntryId, setup.simulationSeed);
+  const priorSeed = setup.simulationSeed;
+  const baselineSeed = setup.recordedBaseline?.seed;
+  const seed = resolvePairedExperimentSeed(setup, design.id);
+  const preservedExisting = baselineSeed != null || priorSeed != null;
   return {
     ...asMolecule,
     attachedTherapeutic: config,
@@ -195,9 +201,41 @@ export function attachTherapeuticToSetup(
       {
         timestamp: now,
         type: 'therapeutic-attach',
-        detail: `Conceptual therapeutic “${design.name}” (${design.intendedOutcome ?? 'growth-suppression'}) attached to experimental dish; control remains untreated`,
+        detail: preservedExisting
+          ? `Conceptual therapeutic “${design.name}” (${design.intendedOutcome ?? 'growth-suppression'}) attached to experimental dish; matched seed ${seed} preserved (baseline/control); control remains untreated`
+          : `Conceptual therapeutic “${design.name}” (${design.intendedOutcome ?? 'growth-suppression'}) attached to experimental dish; matched seed ${seed} assigned; control remains untreated`,
       },
     ],
+  };
+}
+
+/**
+ * If a recorded baseline’s seed no longer matches the active paired seed, clear it and
+ * require a fresh baseline rather than presenting a false “same seed” comparison.
+ */
+export function invalidateBaselineIfSeedMismatch(
+  setup: ActiveExperimentSetup,
+  activeSeed: number | null | undefined,
+): { setup: ActiveExperimentSetup; invalidated: boolean; reason?: string } {
+  const baseline = setup.recordedBaseline;
+  if (!baseline || activeSeed == null || baseline.seed === activeSeed) {
+    return { setup, invalidated: false };
+  }
+  const now = new Date().toISOString();
+  const reason =
+    `Baseline seed ${baseline.seed} does not match active paired seed ${activeSeed}. Baseline cleared — record a new baseline before comparing.`;
+  return {
+    setup: {
+      ...setup,
+      recordedBaseline: null,
+      updatedAt: now,
+      history: [
+        ...setup.history,
+        { timestamp: now, type: 'baseline-invalidated', detail: reason },
+      ],
+    },
+    invalidated: true,
+    reason,
   };
 }
 
@@ -225,13 +263,15 @@ export function recordDishBaseline(
   return {
     ...setup,
     recordedBaseline: baseline,
+    // Commit the matched seed on the setup so later design attach cannot retarget it
+    simulationSeed: baseline.seed,
     updatedAt: now,
     history: [
       ...setup.history,
       {
         timestamp: now,
         type: 'baseline-recorded',
-        detail: `Baseline recorded at ${baseline.timeHours.toFixed(2)} h (tick ${baseline.tick}) — ${SIMULATED_ESTIMATE_HINT}`,
+        detail: `Baseline recorded at ${baseline.timeHours.toFixed(2)} h (tick ${baseline.tick}), seed ${baseline.seed} — ${SIMULATED_ESTIMATE_HINT}`,
       },
     ],
   };

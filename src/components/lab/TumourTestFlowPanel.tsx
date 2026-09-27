@@ -56,20 +56,33 @@ export function TumourTestFlowPanel({
   const s3 = stepStatus(!!treatment, !!baseline && !treatment);
   const s4 = stepStatus(!!baseline && !!treatment && hasAfterTicks, !!baseline && !!treatment);
 
-  const result = baseline && experimentalSim && comparisonAllowed
+  const activeSeed = experimentalSim?.seed
+    ?? setup.simulationSeed
+    ?? baseline?.seed
+    ?? null;
+
+  const seedConsistent = !baseline || activeSeed == null || baseline.seed === activeSeed;
+
+  const result = baseline && experimentalSim && comparisonAllowed && seedConsistent
     ? buildBeforeAfterResult({
       cellModelId: setup.catalogueEntryId,
       cellModelName: organismName,
       baseline: {
         timeHours: baseline.timeHours,
         organismState: baseline.organismState,
+        seed: baseline.seed,
       },
       after: experimentalSim.organismState,
       control: controlSim?.organismState ?? baseline.controlOrganismState ?? null,
       treatment,
       seed: baseline.seed,
+      activeSeed: activeSeed ?? baseline.seed,
       elapsedAfterHours: experimentalSim.timeHours,
     })
+    : null;
+
+  const seedMismatchNote = baseline && activeSeed != null && baseline.seed !== activeSeed
+    ? `Seed mismatch: baseline seed ${baseline.seed} ≠ active paired seed ${activeSeed}. Before/after comparison is blocked until you record a new baseline (or re-select the cell and restart the matched pair). Never label these as the same seed.`
     : null;
 
   const tumourDesigns = designs.filter(
@@ -174,6 +187,12 @@ export function TumourTestFlowPanel({
         </li>
       </ol>
 
+      {seedMismatchNote && (
+        <p className="warn-text" role="alert">
+          {seedMismatchNote}
+        </p>
+      )}
+
       {baseline && experimentalSim && !comparisonAllowed && (
         <p className="warn-text" role="alert">
           Before/after vs control table hidden until experimental and control environments match.
@@ -191,7 +210,11 @@ export function TumourTestFlowPanel({
             <dt>Conceptual vector</dt>
             <dd>{result.designName ?? 'None'}{result.intendedOutcome ? ` · ${result.intendedOutcome}` : ''}</dd>
             <dt>Seed</dt>
-            <dd>{result.seed}</dd>
+            <dd>
+              {result.seedMatched
+                ? `${result.activeSeed} (matched baseline, treated, and untreated control)`
+                : `baseline ${result.seed} / active ${result.activeSeed} — MISMATCH`}
+            </dd>
             <dt>Baseline time</dt>
             <dd>{result.baselineTimeHours.toFixed(2)} simulated hours</dd>
             <dt>Elapsed after vector</dt>
@@ -199,8 +222,16 @@ export function TumourTestFlowPanel({
             <dt>Elapsed since baseline</dt>
             <dd>{result.elapsedSinceBaselineHours.toFixed(2)} simulated hours</dd>
             <dt>Control</dt>
-            <dd>Matched untreated dish (same seed; no conceptual vector)</dd>
+            <dd>
+              {result.seedMatched
+                ? 'Matched untreated dish (same seed; no conceptual vector)'
+                : 'Control seed does not match baseline — comparison not labelled as same-seed'}
+            </dd>
           </dl>
+
+          {result.seedMismatchMessage && (
+            <p className="warn-text" role="alert">{result.seedMismatchMessage}</p>
+          )}
 
           <div className="tumour-before-after-scroll">
             <table className="tumour-report-table" aria-label="Baseline after and control metric table">

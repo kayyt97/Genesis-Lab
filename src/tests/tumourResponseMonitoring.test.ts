@@ -121,9 +121,10 @@ describe('tumourResponseMonitoring', () => {
     expect(movement.assessment).toBe('measured');
     expect(population.assessment).toBe('measured');
     expect(viability.assessment).toBe('measured');
-    expect(invasion.assessment).toBe('not-assessed');
+    expect(invasion.assessment).toBe('not-measured');
     expect(healthy.assessment).toBe('not-assessed');
-    expect(invasion.displayTreatedEnd).toBe('not assessed');
+    expect(invasion.displayTreatedEnd).toBe('not measured');
+    expect(invasion.note.toLowerCase()).toContain('not measured');
     expect(healthy.note.toLowerCase()).toContain('not assessed');
 
     expect(movement.treatedEnd).not.toBeNull();
@@ -292,11 +293,11 @@ describe('tumourResponseMonitoring', () => {
     expect(fields).toContain('response_invasion_assessment');
     expect(fields).toContain('response_healthyCells_assessment');
     expect(fields).toContain('responseNeverMetastasisClaim');
-    expect(csv.find((r) => r[0] === 'response_invasion_assessment')?.[1]).toBe('not-assessed');
+    expect(csv.find((r) => r[0] === 'response_invasion_assessment')?.[1]).toBe('not-measured');
 
     const payload = responseMonitoringToExportPayload(monitoring);
     expect(payload.comparisonAllowed).toBe(true);
-    expect(payload.channels.some((c) => c.key === 'invasion' && c.assessment === 'not-assessed')).toBe(true);
+    expect(payload.channels.some((c) => c.key === 'invasion' && c.assessment === 'not-measured')).toBe(true);
     expect(payload.neverMetastasisClaim).toMatch(/metastasis prevented/i);
   });
 
@@ -309,7 +310,7 @@ describe('tumourResponseMonitoring', () => {
     expect(section!.source).toBe('model-generated');
     expect(section!.content).toContain('Tumour Response Monitoring');
     expect(section!.content.toLowerCase()).toContain('invasion');
-    expect(section!.content).toMatch(/not assessed/i);
+    expect(section!.content).toMatch(/not measured/i);
     expect(section!.content).toMatch(/metastasis prevented/i);
   });
 

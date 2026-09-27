@@ -353,7 +353,7 @@ function formatResponseSection(
   if (level === 'simple') {
     const move = monitoring.channels.find((c) => c.key === 'movement');
     return {
-      content: `Educational paired monitoring: movement ${move?.percentDifferenceVsControl ?? 'n/a'} vs control; invasion not assessed; ${monitoring.movementStatus ? `status ${monitoring.movementStatus.status}.` : ''} This does not mean metastasis was prevented.`,
+      content: `Educational paired monitoring: movement ${move?.percentDifferenceVsControl ?? 'n/a'} vs control; invasion not measured; ${monitoring.movementStatus ? `status ${monitoring.movementStatus.status}.` : ''} This does not mean metastasis was prevented.`,
       source: 'model-generated',
     };
   }

@@ -48,6 +48,7 @@ import {
   recordDishBaseline,
   syncMatchedControlEnvironment,
   environmentsMatchForComparison,
+  invalidateBaselineIfSeedMismatch,
 } from '../services/experimentWorkspaceService';
 import { getSimulationProfile, assertSimulationAllowed } from '../services/organismSimulationProfile';
 import { buildScientificReport, ensureTumourMovementReportSection, ensureTumourResponseReportSection } from '../services/reportGenerator';
@@ -65,6 +66,7 @@ import {
 import {
   deriveTumourExperimentSeed,
   isTumourCellModel,
+  resolvePairedExperimentSeed,
   therapeuticConfigFromDesign,
 } from '../services/tumourCellSimulation';
 import { THERAPEUTIC_INTENDED_OUTCOME_LABELS } from '../types/scientific';
@@ -267,30 +269,39 @@ export function VirtualLabPage() {
     next = attachTherapeuticToSetup(next, design);
     // Control must match experimental environment so treatment is the only intentional difference
     next = syncMatchedControlEnvironment(next, sim.environment);
+    const matchedSeed = resolvePairedExperimentSeed(next, design.id);
+    // Guard: never keep a baseline that disagrees with the active matched seed
+    const seedGuard = invalidateBaselineIfSeedMismatch(next, matchedSeed);
+    next = seedGuard.setup;
+    if (seedGuard.invalidated) {
+      setActionFeedback(seedGuard.reason ?? 'Baseline invalidated due to seed mismatch.');
+      dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: next });
+      return;
+    }
     const treatment = therapeuticConfigFromDesign(design);
-    // Keep current dish state (and baseline); attach treatment in place — do not wipe metrics.
+    // Keep current dish state (and baseline); attach treatment in place — same matched seed.
     const treatedSim = {
       ...sim,
-      seed: next.simulationSeed ?? sim.seed,
+      seed: matchedSeed,
       therapeuticTreatment: treatment,
     };
     const matchedControl = controlSim
       ? {
         ...controlSim,
-        seed: next.simulationSeed ?? controlSim.seed,
+        seed: matchedSeed,
         therapeuticTreatment: undefined,
         environment: { ...next.control.environment },
       }
       : createSimulation(next.catalogueEntryId, next.control.environment, undefined, {
-        seed: next.simulationSeed,
+        seed: matchedSeed,
         conditionId: next.control.sampleId,
       });
 
-    dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: next });
+    dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: { ...next, simulationSeed: matchedSeed } });
     dispatch({ type: 'SET_SIMULATION', payload: treatedSim });
     dispatch({ type: 'SET_CONTROL_SIMULATION', payload: matchedControl });
     setActionFeedback(
-      `Applied conceptual vector “${design.name}” (${THERAPEUTIC_INTENDED_OUTCOME_LABELS[design.intendedOutcome ?? 'growth-suppression']}). pH unchanged. Control remains untreated and matched. Step the simulation to see before/after.`,
+      `Applied conceptual vector “${design.name}” (${THERAPEUTIC_INTENDED_OUTCOME_LABELS[design.intendedOutcome ?? 'growth-suppression']}). Matched seed ${matchedSeed} kept for baseline, treated, and untreated control. pH unchanged. Step the simulation to see before/after.`,
     );
   }, [setup, sim, controlSim, dispatch]);
 
@@ -435,24 +446,29 @@ export function VirtualLabPage() {
           next = recordDishBaseline(next, sim, controlSim?.organismState ?? null);
         }
         next = attachTherapeuticToSetup(next, design);
+        const matchedSeed = resolvePairedExperimentSeed(next, design.id);
+        const seedGuard = invalidateBaselineIfSeedMismatch(next, matchedSeed);
+        next = { ...seedGuard.setup, simulationSeed: matchedSeed };
         const treatment = therapeuticConfigFromDesign(design);
         if (sim) {
           dispatch({ type: 'UPDATE_EXPERIMENT_SETUP', payload: next });
           dispatch({
             type: 'SET_SIMULATION',
-            payload: { ...sim, seed: next.simulationSeed ?? sim.seed, therapeuticTreatment: treatment },
+            payload: { ...sim, seed: matchedSeed, therapeuticTreatment: treatment },
           });
           if (controlSim) {
             dispatch({
               type: 'SET_CONTROL_SIMULATION',
-              payload: { ...controlSim, seed: next.simulationSeed ?? controlSim.seed, therapeuticTreatment: undefined },
+              payload: { ...controlSim, seed: matchedSeed, therapeuticTreatment: undefined },
             });
           }
         } else {
           applySetupSims(next);
         }
         setActionFeedback(
-          `Attached conceptual treatment “${design.name}” with its saved settings. Baseline preserved for before/after. Control remains untreated. Simulated educational estimates only.`,
+          seedGuard.invalidated
+            ? (seedGuard.reason ?? 'Baseline invalidated due to seed mismatch.')
+            : `Attached conceptual treatment “${design.name}” with its saved settings. Matched seed ${matchedSeed} preserved for baseline, treated, and untreated control. Simulated educational estimates only.`,
         );
         dispatch({ type: 'SET_LAB_HANDOFF', payload: null });
         setPendingRole(null);

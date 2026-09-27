@@ -143,7 +143,7 @@ export function TumourResponseMonitoringPanel({
             aria-label={`${ch.label} response channel`}
           >
             <h4>{ch.label}</h4>
-            {ch.assessment === 'not-assessed' ? (
+            {ch.assessment === 'not-assessed' || ch.assessment === 'not-measured' ? (
               <p className="tumour-response-not-assessed">{ch.note}</p>
             ) : (
               <>
