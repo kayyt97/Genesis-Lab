@@ -19,7 +19,7 @@ import {
 } from './tumourCellSimulation';
 import { environmentsMatchForComparison } from './experimentWorkspaceService';
 import { THERAPEUTIC_INTENDED_OUTCOME_LABELS } from '../types/scientific';
-import { formatPopulation } from '../simulation/engine';
+import { createSimulation, formatPopulation } from '../simulation/engine';
 
 export type { PairedResponseSnapshot };
 
@@ -143,13 +143,21 @@ function clampRound(n: number, digits = 2): number {
   return Math.round(n * f) / f;
 }
 
-function startingState(sim: Simulation | null, baseline?: RecordedDishBaseline | null) {
+function startingState(
+  sim: Simulation | null,
+  baseline?: RecordedDishBaseline | null,
+  opts?: { organismId?: string; environment?: EnvironmentConditions },
+) {
   if (baseline?.organismState) return baseline.organismState;
-  if (!sim) return null;
-  if (sim.snapshots.length > 0) {
-    // Prefer earliest snapshot; approximate start when first tick already advanced
-    return sim.snapshots[0]!.organismState;
+  // Reconstruct true t=0 from the shared seed (no treatment) so the first
+  // post-tick snapshot does not already include therapeutic drift.
+  if (sim?.seed != null && opts?.organismId && opts.environment) {
+    return createSimulation(opts.organismId, opts.environment, undefined, {
+      seed: sim.seed,
+    }).organismState;
   }
+  if (!sim) return null;
+  if (sim.snapshots.length > 0) return sim.snapshots[0]!.organismState;
   return sim.organismState;
 }
 
@@ -233,16 +241,24 @@ export function validatePairedRunMatch(opts: {
   treatment?: TherapeuticTreatmentConfig | null;
   expectedVersion?: string;
   baseline?: RecordedDishBaseline | null;
+  cellModelId?: string;
 }): MatchCheckResult {
   const version = opts.expectedVersion ?? GENESIS_LAB_VERSION;
+  const organismId = opts.cellModelId
+    ?? opts.experimental?.organismId
+    ?? opts.control?.organismId;
+  const expStart = startingState(opts.experimental, opts.baseline, {
+    organismId,
+    environment: opts.experimentalEnv,
+  });
+  const ctrlBaseline = opts.baseline?.controlOrganismState
+    ? { ...opts.baseline, organismState: opts.baseline.controlOrganismState }
+    : null;
+  const ctrlStart = startingState(opts.control, ctrlBaseline, {
+    organismId,
+    environment: opts.controlEnv,
+  });
   const mismatches: string[] = [];
-  const expStart = startingState(opts.experimental, opts.baseline);
-  const ctrlStart = startingState(
-    opts.control,
-    opts.baseline?.controlOrganismState
-      ? { ...opts.baseline, organismState: opts.baseline.controlOrganismState }
-      : null,
-  );
 
   const startPopT = expStart?.population ?? null;
   const startPopC = ctrlStart?.population ?? null;
@@ -477,6 +493,7 @@ export function buildTumourResponseMonitoring(opts: {
     controlEnv: opts.controlEnv,
     treatment: opts.treatment,
     baseline: opts.baseline,
+    cellModelId: opts.cellModelId,
   });
 
   const designName = opts.treatment?.designName ?? null;
@@ -487,13 +504,17 @@ export function buildTumourResponseMonitoring(opts: {
     ? `Treated — ${designName}`
     : 'Treated (no conceptual therapeutic attached)';
 
-  const expStart = startingState(opts.experimental, opts.baseline);
-  const ctrlStart = startingState(
-    opts.control,
-    opts.baseline?.controlOrganismState
-      ? { ...opts.baseline, organismState: opts.baseline.controlOrganismState }
-      : null,
-  );
+  const expStart = startingState(opts.experimental, opts.baseline, {
+    organismId: opts.cellModelId,
+    environment: opts.experimentalEnv,
+  });
+  const ctrlBaseline = opts.baseline?.controlOrganismState
+    ? { ...opts.baseline, organismState: opts.baseline.controlOrganismState }
+    : null;
+  const ctrlStart = startingState(opts.control, ctrlBaseline, {
+    organismId: opts.cellModelId,
+    environment: opts.controlEnv,
+  });
   const expEnd = endingState(opts.experimental);
   const ctrlEnd = endingState(opts.control);
 
