@@ -250,28 +250,34 @@ export function applyTherapeuticTick(opts: {
 
   if (treatment) {
     const { delivery, potency, selectivity, drag } = designEffectStrengths(treatment.variables);
-    const effective = delivery * potency * selectivity * (1 - drag * 0.5);
+    // Seed-dependent response heterogeneity makes independent seeded replicates
+    // meaningfully different while keeping each run exactly reproducible. Treated
+    // and control arms retain the same environmental seed; only the treatment
+    // response receives this bounded educational variability factor.
+    const responseVariation = seededRange(seed, 0.85, 1.15, tick + 700);
+    const replicateEffective = effective * responseVariation;
+    const replicateDrag = drag * (0.9 + responseVariation * (1 / 3));
     const outcome = treatment.intendedOutcome;
 
     // Outcome-specific channels — keep movement and viability independent.
     if (outcome === 'reduce-movement') {
-      const moveDrop = effective * 8 * dt;
+      const moveDrop = replicateEffective * 8 * dt;
       cellMovement = clamp((cellMovement as number) - moveDrop, 0, 100);
       // Slight proliferation coupling only via off-target drag — never equate viability drop to movement success
-      proliferation = clamp((proliferation as number) - drag * 1.2 * dt, 0, 100);
-      viability = clamp(viability - drag * 0.8 * dt, 0, 100);
+      proliferation = clamp((proliferation as number) - replicateDrag * 1.2 * dt, 0, 100);
+      viability = clamp(viability - replicateDrag * 0.8 * dt, 0, 100);
     } else if (outcome === 'growth-suppression') {
-      const prolifDrop = effective * 7 * dt;
+      const prolifDrop = replicateEffective * 7 * dt;
       proliferation = clamp((proliferation as number) - prolifDrop, 0, 100);
-      replicationRate = Math.max(0, replicationRate * (1 - effective * 0.15 * dt));
-      cellMovement = clamp((cellMovement as number) - drag * 1.0 * dt, 0, 100);
-      viability = clamp(viability - drag * 1.0 * dt - effective * 0.5 * dt, 0, 100);
+      replicationRate = Math.max(0, replicationRate * (1 - replicateEffective * 0.15 * dt));
+      cellMovement = clamp((cellMovement as number) - replicateDrag * 1.0 * dt, 0, 100);
+      viability = clamp(viability - replicateDrag * 1.0 * dt - replicateEffective * 0.5 * dt, 0, 100);
     } else if (outcome === 'cell-killing') {
-      const kill = effective * 6 * dt;
+      const kill = replicateEffective * 6 * dt;
       viability = clamp(viability - kill, 0, 100);
-      proliferation = clamp((proliferation as number) - effective * 4 * dt, 0, 100);
-      cellMovement = clamp((cellMovement as number) - effective * 2 * dt - drag * dt, 0, 100);
-      replicationRate = Math.max(0, replicationRate * (1 - effective * 0.2 * dt));
+      proliferation = clamp((proliferation as number) - replicateEffective * 4 * dt, 0, 100);
+      cellMovement = clamp((cellMovement as number) - replicateEffective * 2 * dt - replicateDrag * dt, 0, 100);
+      replicationRate = Math.max(0, replicationRate * (1 - replicateEffective * 0.2 * dt));
     }
   }
 
