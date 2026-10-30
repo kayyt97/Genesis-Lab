@@ -17,5 +17,13 @@ export function seededRange(seed: number, min: number, max: number, index = 0): 
 }
 
 export function generateSeed(): number {
-  return Math.floor(Math.random() * 2147483647);
+  // Prefer the browser's cryptographic random source when available.
+  // Keep the fallback for older or restricted browser environments.
+  try {
+    const values = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(values);
+    return (values[0] % 2147483647) + 1;
+  } catch {
+    return Math.floor(Math.random() * 2147483647) + 1;
+  }
 }

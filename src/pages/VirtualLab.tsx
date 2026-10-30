@@ -45,6 +45,7 @@ import {
   sanitizeTherapeuticDesign,
 } from '../services/therapeuticDesignPersistence';
 import { forecastViability } from '../services/viabilityForecast';
+import { generateSeed } from '../services/seededRandom';
 import { runExperimentalDesignCheck, generateAutoControlEnvironment } from '../services/designCheck';
 import { useAppState, sendToMicroscope } from '../store/AppContext';
 import { defaultEnvironment } from '../data/demoData';
@@ -209,10 +210,10 @@ export function VirtualLabPage() {
     if (!setup) return;
 
     const currentSeed = setup.simulationSeed ?? sim?.seed;
-    let nextSeed = Math.floor(Math.random() * 2147483647) + 1;
+    let nextSeed = generateSeed();
 
     while (nextSeed === currentSeed) {
-      nextSeed = Math.floor(Math.random() * 2147483647) + 1;
+      nextSeed = generateSeed();
     }
 
     const seedGuard = invalidateBaselineIfSeedMismatch(
