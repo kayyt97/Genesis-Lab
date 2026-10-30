@@ -3,7 +3,7 @@
  * These are deterministic computer simulations, not biological experiments.
  */
 import type { EnvironmentConditions, TherapeuticTreatmentConfig } from '../types';
-import type { TherapeuticDesign, TherapeuticIntendedOutcome } from '../types/scientific';
+import type { TherapeuticDesign } from '../types/scientific';
 import { createSimulation, simulationTick, startSimulation } from '../simulation/engine';
 import { defaultEnvironment } from '../data/demoData';
 import { generateSeed } from './seededRandom';
