@@ -99,9 +99,17 @@ function computeEnvironmentalStress(
   const phDiff = Math.abs(env.ph - optimalPh);
   stress += Math.min(phDiff / 4, 0.3);
 
-  // Oxygen (for anaerobes vs aerobes simplified)
+  // Simplified oxygen-sensitivity teaching rule for tumour-cell catalogue models.
+  // This is a deliberately transparent model assumption, not a measured A549
+  // oxygen-response curve or a claim about physiological culture conditions.
+  if (isTumourCellModel(organismId)) {
+    const oxygenDeviation = Math.abs(env.oxygen - 21);
+    stress += Math.min(oxygenDeviation / 30, 0.2);
+  }
+
+  // Oxygen rule for the legacy facultative organism model.
   if (organismId === 'ORG-001' && env.oxygen < 5) {
-    stress += 0.1; // facultative, minor stress
+    stress += 0.1;
   }
 
   // Nutrient availability
