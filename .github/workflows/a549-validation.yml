@@ -1,0 +1,30 @@
+name: A549 educational simulation validation
+on:
+  push:
+    branches: [main, automation/a549-validation-artifacts]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate-and-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install
+      - name: Run A549 robustness tests
+        run: bun test src/tests/a549Robustness.test.ts
+      - name: Generate 30-replicate reports across environments
+        run: bun scripts/run-a549-robustness.ts
+      - name: Upload study reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-lab-a549-30-replicate-reports
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
