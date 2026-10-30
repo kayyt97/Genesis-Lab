@@ -88,7 +88,7 @@ function makeCandidate(kind: LungStudyKind): TherapeuticDesign {
       ? 'Conceptual tumour-cell viability reduction channel in the A549 educational model; no molecular target is claimed.'
       : 'Conceptual tumour-cell motility reduction channel in the A549 educational model; no molecular target is claimed.',
     deliveryModel: 'non-replicating-vector',
-    payloadEffect: killing ? 'induce-cell-death' : 'suppress-target',
+    payloadEffect: 'suppress-target',
     intendedOutcome: killing ? 'cell-killing' : 'reduce-movement',
     targetCellModelId: LUNG_CANCER_CELL_MODEL_ID,
     variables: { ...commonVariables },
