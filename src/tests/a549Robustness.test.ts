@@ -93,4 +93,23 @@ describe('A549 dual-study robustness checks', () => {
       }
     },
   );
+  test('oxygen scenarios affect A549 control outputs under the documented teaching rule', () => {
+    const run = (oxygen: number) => runDualLungCancerStudies({
+      baseSeed: BASE_SEED,
+      replicateCount: 30,
+      ticks: 16,
+      environment: { ...BASE_ENVIRONMENT, oxygen },
+    });
+    const baseline = run(21);
+    const lowOxygen = run(18);
+    const highOxygen = run(24);
+
+    expect(lowOxygen.killing.summary.controlViabilityMean)
+      .toBeLessThan(baseline.killing.summary.controlViabilityMean);
+    expect(highOxygen.killing.summary.controlViabilityMean)
+      .toBeLessThan(baseline.killing.summary.controlViabilityMean);
+    expect(lowOxygen.killing.replicates).toEqual(run(18).killing.replicates);
+    expect(highOxygen.killing.replicates).toEqual(run(24).killing.replicates);
+  });
+
 });
