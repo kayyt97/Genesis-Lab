@@ -496,6 +496,7 @@ export function TherapeuticDesignPage() {
                   type="range"
                   min={0}
                   max={100}
+                  step={1}
                   value={v[key]}
                   onChange={(e) => setForm({ ...form, variables: { ...v, [key]: parseInt(e.target.value, 10) } })}
                   aria-label={key.replace(/([A-Z])/g, ' $1')}
