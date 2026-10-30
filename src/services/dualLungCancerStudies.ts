@@ -110,8 +110,15 @@ function sd(values: number[]): number {
 function runOne(kind: LungStudyKind, replicate: number, seed: number, env: EnvironmentConditions, ticks: number): LungReplicate {
   const candidate = makeCandidate(kind);
   const treatment: TherapeuticTreatmentConfig = therapeuticConfigFromDesign(candidate);
-  let treated = startSimulation(createSimulation(LUNG_CANCER_CELL_MODEL_ID, env, undefined, { seed, therapeuticTreatment: treatment }));
-  let control = startSimulation(createSimulation(LUNG_CANCER_CELL_MODEL_ID, env, undefined, { seed, conditionId: `A549-control-${replicate}` }));
+  // Enable deterministic, seed-controlled process variability in both arms.
+  // Matched seeds preserve paired comparisons; this variability is synthetic,
+  // not calibrated from biological replicate data.
+  let treated = startSimulation(createSimulation(LUNG_CANCER_CELL_MODEL_ID, env, undefined, {
+    seed, variabilityEnabled: true, therapeuticTreatment: treatment,
+  }));
+  let control = startSimulation(createSimulation(LUNG_CANCER_CELL_MODEL_ID, env, undefined, {
+    seed, variabilityEnabled: true, conditionId: `A549-control-${replicate}`,
+  }));
   for (let i = 0; i < ticks; i += 1) {
     treated = simulationTick(treated);
     control = simulationTick(control);
@@ -175,6 +182,8 @@ function runStudy(kind: LungStudyKind, baseSeed: number, replicateCount: number,
       `Each paired run advances ${ticks} simulation ticks.`,
       `Seeds: ${seeds.join(', ')}.`,
       'Means and sample standard deviations are calculated across paired replicate differences.',
+      'Bounded deterministic process variability is enabled in both arms; matched seeds preserve paired comparisons.',
+      'The environmental teaching model includes a simple tumour-cell oxygen-deviation stress term around 21%; this is an illustrative assumption, not a measured A549 response curve.',
     ],
     limitations: [
       LUNG_CANCER_NOTICE,
@@ -182,6 +191,7 @@ function runStudy(kind: LungStudyKind, baseSeed: number, replicateCount: number,
       'The killing study cannot establish real cell death; the spread study measures only a modelled motility index.',
       'Invasion, distant-organ colonisation, and metastatic events are not simulated and must not be inferred.',
       'Slider values are dimensionless teaching parameters, not doses or real vector specifications.',
+      'Replicate variability and oxygen sensitivity are simplified software assumptions, not empirically calibrated biological distributions or oxygen-response data.',
       'No real molecular target, compound, vector construct, wet-lab protocol, or clinical recommendation is provided.',
     ],
     conclusion: `Across ${replicateCount} paired simulated replicates, the mean treated-minus-control difference in ${primaryEndpoint} was ${primaryDelta.toFixed(2)} percentage points (sample SD ${(kind === 'cell-killing' ? summary.viabilityDifferenceSd : summary.movementDifferenceSd).toFixed(2)}). This describes only the Genesis Lab model output and does not establish biological or clinical efficacy.`,
