@@ -256,7 +256,7 @@ export function applyTherapeuticTick(opts: {
     // response receives this bounded educational variability factor.
     const responseVariation = seededRange(seed, 0.85, 1.15, tick + 700);
     const replicateEffective = effective * responseVariation;
-    const replicateDrag = drag * (0.9 + responseVariation * (1 / 3));
+    const replicateDrag = drag * responseVariation;
     const outcome = treatment.intendedOutcome;
 
     // Outcome-specific channels — keep movement and viability independent.
