@@ -205,7 +205,54 @@ export function VirtualLabPage() {
     dispatch({ type: 'SET_SIMULATION', payload: experimental });
     dispatch({ type: 'SET_CONTROL_SIMULATION', payload: control });
   }, [dispatch]);
+  const handleGenerateRandomSeed = useCallback(() => {
+    if (!setup) return;
 
+    const currentSeed = setup.simulationSeed ?? sim?.seed;
+    let nextSeed = Math.floor(Math.random() * 2147483647) + 1;
+
+    while (nextSeed === currentSeed) {
+      nextSeed = Math.floor(Math.random() * 2147483647) + 1;
+    }
+
+    const seedGuard = invalidateBaselineIfSeedMismatch(
+      { ...setup, simulationSeed: nextSeed },
+      nextSeed,
+    );
+
+    const { experimental, control, seed } = pairedSimulations(
+      seedGuard.setup,
+      seedGuard.setup.attachedTherapeutic,
+    );
+
+    dispatch({
+      type: 'SET_EXPERIMENT_SETUP',
+      payload: { ...seedGuard.setup, simulationSeed: seed },
+    });
+
+    dispatch({
+      type: 'SET_SIMULATION',
+      payload: {
+        ...experimental,
+        variabilityEnabled: sim?.variabilityEnabled ?? false,
+      },
+    });
+
+    dispatch({
+      type: 'SET_CONTROL_SIMULATION',
+      payload: {
+        ...control,
+        variabilityEnabled: controlSim?.variabilityEnabled ?? false,
+      },
+    });
+
+    setScrubTime(null);
+    setActionFeedback(
+      seedGuard.invalidated
+        ? `New matched simulation seed: ${seed}. Previous baseline cleared; record a fresh baseline before comparing.`
+        : `New matched simulation seed: ${seed}. Experimental and untreated control now share this seed.`,
+    );
+  }, [setup, sim, controlSim, dispatch]);
   const initFromCatalogue = useCallback((entry: OrganismCatalogueEntry, therapeutic?: TherapeuticDesign | null) => {
     const allowed = assertSimulationAllowed(entry.id);
     if (!allowed.ok) {
@@ -1078,6 +1125,13 @@ export function VirtualLabPage() {
             Enable experimental variability (seeded, reproducible)
           </label>
           {sim?.seed !== undefined && <p className="text-muted">Simulation seed: {sim.seed} (matched experimental + control)</p>}
+<Button
+  variant="secondary"
+  onClick={handleGenerateRandomSeed}
+  disabled={!setup}
+>
+  Generate random seed
+</Button>
           <label className="checkbox-label">
             <input type="checkbox" checked={state.settings.autoControlEnabled} onChange={(e) => dispatch({ type: 'UPDATE_SETTINGS', payload: { autoControlEnabled: e.target.checked } })} />
             Auto-control: matched control environment proposed
