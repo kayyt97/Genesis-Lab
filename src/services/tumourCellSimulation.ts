@@ -250,6 +250,7 @@ export function applyTherapeuticTick(opts: {
 
   if (treatment) {
     const { delivery, potency, selectivity, drag } = designEffectStrengths(treatment.variables);
+    const effective = delivery * potency * selectivity * (1 - drag * 0.5);
     // Seed-dependent response heterogeneity makes independent seeded replicates
     // meaningfully different while keeping each run exactly reproducible. Treated
     // and control arms retain the same environmental seed; only the treatment
