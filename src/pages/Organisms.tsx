@@ -329,6 +329,9 @@ function OrganismDetail({
           <>
             <dt>Source links</dt>
             <dd className="source-links">
+              {tumour.sourceLinks.cellosaurus && (
+                <a href={tumour.sourceLinks.cellosaurus} target="_blank" rel="noreferrer">Cellosaurus cell-line record</a>
+              )}
               {tumour.sourceLinks.ncitConcept && (
                 <a href={tumour.sourceLinks.ncitConcept} target="_blank" rel="noreferrer">NCI Thesaurus concept</a>
               )}
