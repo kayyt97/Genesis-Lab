@@ -22,6 +22,8 @@ export {
   SIMULATION_READY_TUMOUR_CELL_LINE_IDS,
 } from './tumourCellLines';
 export { TUMOUR_RESEARCH_MODEL_ENTRIES } from './researchModels';
+export { GENESIS_OPSCC_001, GENESIS_OPSCC_RESEARCH_PHASES } from './opsccResearchProgramme';
+export type { CancerResearchProgramme, ResearchEvidenceClass } from './opsccResearchProgramme';
 
 import { TUMOUR_TAXONOMY_ENTRIES } from './tumours';
 import { TUMOUR_CELL_LINE_ENTRIES } from './tumourCellLines';
