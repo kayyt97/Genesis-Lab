@@ -100,7 +100,7 @@ export const TUMOUR_RESEARCH_MODEL_ENTRIES: TumourCatalogueEntry[] = [
     relatedTumourIds: ['ORG-TUM-C4648'],
   },
   {
-    id: 'ORG-CL- A375'.replace(' ', ''),
+    id: 'ORG-CL-A375',
     name: 'A-375 cells',
     scientificName: 'Homo sapiens A-375 (amelanotic melanoma cell line)',
     aliases: ['A375', 'A 375', 'A375-MEL', 'amelanotic melanoma model', 'skin melanoma model'],
