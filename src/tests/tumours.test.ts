@@ -3,6 +3,9 @@ import {
   organismIndex,
   TUMOUR_TAXONOMY_META,
   TUMOUR_CELL_LINE_ENTRIES,
+  TUMOUR_RESEARCH_MODEL_ENTRIES,
+  GENESIS_OPSCC_001,
+  GENESIS_OPSCC_RESEARCH_PHASES,
   normalizeSearch,
   isTumourEntry,
 } from '../catalogue/index';
@@ -35,6 +38,47 @@ describe('tumour / cancer catalogue', () => {
     expect(organismIndex.query({ search: 'cholangiocarcinoma', pageSize: 5 }).total).toBeGreaterThan(0);
     expect(organismIndex.query({ search: 'acanthoma', pageSize: 5 }).total).toBeGreaterThan(0);
     expect(organismIndex.query({ search: 'hairy cell', pageSize: 5 }).total).toBeGreaterThan(0);
+  });
+
+  test('head and neck SCC and additional cancer research cell lines are searchable but reference-only', () => {
+    const fadu = organismIndex.getById('ORG-CL-FADU');
+    const scc25 = organismIndex.getById('ORG-CL-SCC25');
+    const melanoma = organismIndex.getById('ORG-CL-A375');
+    const pancreas = organismIndex.getById('ORG-CL-PANC1');
+
+    expect(fadu?.name).toBe('FaDu cells');
+    expect(fadu?.ncitCode).toBe('C4043');
+    expect(fadu?.bodySystem).toBe('Head and Neck Neoplasm');
+    expect(scc25?.ncitCode).toBe('C4648');
+    expect(melanoma?.ncitCode).toBe('C3802');
+    expect(pancreas?.ncitCode).toBe('C9120');
+
+    for (const entry of [fadu, scc25, melanoma, pancreas]) {
+      expect(entry?.entryKind).toBe('tumour-cell-line');
+      expect(entry?.simulationReady).toBe(false);
+      expect(entry?.compatibleModules.includes('virtual-lab')).toBe(false);
+      expect(assertSimulationAllowed(entry!.id).ok).toBe(false);
+    }
+
+    expect(organismIndex.query({ search: 'hypopharyngeal squamous cell carcinoma' }).total).toBeGreaterThan(0);
+    expect(organismIndex.query({ search: 'oral tongue squamous cell carcinoma' }).total).toBeGreaterThan(0);
+    expect(organismIndex.query({ search: 'amelanotic melanoma' }).total).toBeGreaterThan(0);
+    expect(organismIndex.query({ search: 'pancreatic ductal adenocarcinoma' }).total).toBeGreaterThan(0);
+    const upci = organismIndex.getById('ORG-CL-UPCI-SCC090');
+    expect(upci?.name).toBe('UPCI-SCC-090 cells');
+    expect(upci?.simulationReady).toBe(false);
+    expect(upci?.description.standard).toContain('HPV16-positive');
+    expect(TUMOUR_RESEARCH_MODEL_ENTRIES).toHaveLength(5);
+
+    expect(GENESIS_OPSCC_001.personalSignificance.centralQuestions.length).toBeGreaterThanOrEqual(6);
+    expect(GENESIS_OPSCC_001.personalSignificance.modellingBoundary).toContain('not used');
+    expect(GENESIS_OPSCC_001.disease.primary).toContain('Oropharyngeal');
+    expect(GENESIS_OPSCC_001.disease.metastaticSite).toBe('Right lung');
+    expect(GENESIS_OPSCC_001.disease.hpvStatus).toBe('unknown');
+    expect(GENESIS_OPSCC_001.disease.p16Status).toBe('unknown');
+    expect(GENESIS_OPSCC_001.reportedTreatmentContext.currentTreatment).toContain('Pembrolizumab');
+    expect(GENESIS_OPSCC_001.comparisonScenarios).toHaveLength(2);
+    expect(GENESIS_OPSCC_RESEARCH_PHASES.length).toBeGreaterThanOrEqual(8);
   });
 
   test('benign versus malignant behaviour filters', () => {

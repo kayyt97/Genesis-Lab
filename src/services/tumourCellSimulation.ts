@@ -30,12 +30,9 @@ function clamp(n: number, min: number, max: number): number {
 export function isTumourCellModel(organismId: string): boolean {
   const entry = getCatalogueEntry(organismId);
   if (!entry) return false;
-  return (
-    entry.category === 'tumours-cancer'
-    && (entry.entryKind === 'tumour-cell-line' || entry.simulationReady === true)
-    && entry.entryKind !== 'neoplasm-taxonomy'
-    && entry.entryKind !== 'educational-specimen'
-  );
+  // Only explicitly enabled cell-culture models may enter the therapeutic
+  // teaching workflow. Reference-only cell-line records are not simulatable.
+  return entry.category === 'tumours-cancer' && entry.simulationReady === true;
 }
 
 /** Stable seed for a tumour experiment.

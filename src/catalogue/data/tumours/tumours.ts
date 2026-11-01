@@ -33,6 +33,7 @@ export interface TumourCatalogueFields {
     nciCancerSearch?: string;
     icdo4Reference?: string;
     cellLineProvenance?: string;
+    cellosaurus?: string;
   };
   sourceVersion?: string;
   reviewDate?: string;
