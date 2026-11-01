@@ -4,6 +4,8 @@ import {
   TUMOUR_TAXONOMY_META,
   TUMOUR_CELL_LINE_ENTRIES,
   TUMOUR_RESEARCH_MODEL_ENTRIES,
+  GENESIS_OPSCC_001,
+  GENESIS_OPSCC_RESEARCH_PHASES,
   normalizeSearch,
   isTumourEntry,
 } from '../catalogue/index';
@@ -62,7 +64,19 @@ describe('tumour / cancer catalogue', () => {
     expect(organismIndex.query({ search: 'oral tongue squamous cell carcinoma' }).total).toBeGreaterThan(0);
     expect(organismIndex.query({ search: 'amelanotic melanoma' }).total).toBeGreaterThan(0);
     expect(organismIndex.query({ search: 'pancreatic ductal adenocarcinoma' }).total).toBeGreaterThan(0);
-    expect(TUMOUR_RESEARCH_MODEL_ENTRIES).toHaveLength(4);
+    const upci = organismIndex.getById('ORG-CL-UPCI-SCC090');
+    expect(upci?.name).toBe('UPCI-SCC-090 cells');
+    expect(upci?.simulationReady).toBe(false);
+    expect(upci?.description.standard).toContain('HPV16-positive');
+    expect(TUMOUR_RESEARCH_MODEL_ENTRIES).toHaveLength(5);
+
+    expect(GENESIS_OPSCC_001.disease.primary).toContain('Oropharyngeal');
+    expect(GENESIS_OPSCC_001.disease.metastaticSite).toBe('Right lung');
+    expect(GENESIS_OPSCC_001.disease.hpvStatus).toBe('unknown');
+    expect(GENESIS_OPSCC_001.disease.p16Status).toBe('unknown');
+    expect(GENESIS_OPSCC_001.reportedTreatmentContext.currentTreatment).toContain('Pembrolizumab');
+    expect(GENESIS_OPSCC_001.comparisonScenarios).toHaveLength(2);
+    expect(GENESIS_OPSCC_RESEARCH_PHASES.length).toBeGreaterThanOrEqual(8);
   });
 
   test('benign versus malignant behaviour filters', () => {
