@@ -8,6 +8,11 @@ export type ResearchEvidenceClass = 'established-evidence' | 'model-assumption' 
 export interface CancerResearchProgramme {
   id: string;
   title: string;
+  personalSignificance: {
+    purpose: string;
+    centralQuestions: string[];
+    modellingBoundary: string;
+  };
   disease: {
     primary: string;
     parentClassification: string;
@@ -43,6 +48,19 @@ export interface CancerResearchProgramme {
 export const GENESIS_OPSCC_001: CancerResearchProgramme = {
   id: 'GENESIS-OPSCC-001',
   title: 'Oropharyngeal squamous cell carcinoma with pulmonary metastasis',
+  personalSignificance: {
+    purpose: 'A family-motivated educational research programme intended to understand the biological mechanisms behind reported OPSCC, pulmonary metastasis, treatment persistence and immune checkpoint therapy.',
+    centralQuestions: [
+      'What biological processes may contribute to development of the original oropharyngeal tumour?',
+      'What mechanisms enable invasion and distant metastatic spread?',
+      'How can malignant cells persist after chemotherapy and radiotherapy?',
+      'What allows residual cancer cells to survive, and how can tumour heterogeneity and resistance contribute?',
+      'What does pembrolizumab do at the cellular and immune-signalling level?',
+      'Which biological and clinical factors are associated with response or non-response to PD-1 blockade?',
+      'What mechanisms may contribute to disease progression and systemic deterioration?',
+    ],
+    modellingBoundary: 'The family member’s story motivates the programme but is not used as a source of biological parameters or patient-specific model calibration. Genesis does not reinterpret the diagnosis or predict an individual outcome.',
+  },
   disease: {
     primary: 'Oropharyngeal squamous cell carcinoma (OPSCC)',
     parentClassification: 'Head and neck squamous cell carcinoma (HNSCC)',
