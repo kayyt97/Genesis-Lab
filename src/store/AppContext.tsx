@@ -31,6 +31,7 @@ import {
   demoSimulationResults,
 } from '../data/demoData';
 import { simulationTick } from '../simulation/engine';
+import { asthmaResearchExperiments, asthmaResearchNotebookEntries, asthmaResearchProject } from '../data/asthmaResearchRecords';
 import { sanitizePersistedWorkspace, sanitizePersistedSettings } from '../services/persistedStateMigration';
 import {
   loadTherapeuticDesignsFromStorage,
@@ -131,13 +132,13 @@ const demoProject: ResearchProject = {
 
 const initialState: AppState = {
   samples: demoSamples,
-  experiments: demoExperiments,
-  notebookEntries: demoNotebookEntries,
+  experiments: [...demoExperiments, ...asthmaResearchExperiments],
+  notebookEntries: [...asthmaResearchNotebookEntries, ...demoNotebookEntries],
   simulationResults: demoSimulationResults,
   simulationRuns: [],
   activeSimulation: null,
   settings: defaultSettings,
-  projects: [demoProject],
+  projects: [demoProject, asthmaResearchProject],
   genomeUpload: null,
   genomeSimulationCopies: [],
   therapeuticDesigns: [],
@@ -149,6 +150,12 @@ const initialState: AppState = {
   reportDraft: null,
   userWorkspaceActive: false,
 };
+
+function mergeSeededRecords<T extends { id: string }>(seeded: T[], saved: T[] | undefined): T[] {
+  const records = new Map(seeded.map((item) => [item.id, item]));
+  for (const item of saved ?? []) records.set(item.id, item);
+  return [...records.values()];
+}
 
 function duplicateExperiment(exp: Experiment): Experiment {
   const now = new Date().toISOString();
@@ -338,6 +345,11 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         ...loaded,
+        // Add the curated asthma V001 records to existing browser workspaces without
+        // replacing or duplicating any user-created notebook, experiment or project.
+        experiments: mergeSeededRecords(asthmaResearchExperiments, loaded.experiments),
+        notebookEntries: mergeSeededRecords(asthmaResearchNotebookEntries, loaded.notebookEntries),
+        projects: mergeSeededRecords([asthmaResearchProject], loaded.projects),
         therapeuticDesigns,
         settings: { ...defaultSettings, ...sanitizePersistedSettings(loaded.settings), ...loaded.settings },
         genomeUpload: loaded.genomeUpload ?? null,
