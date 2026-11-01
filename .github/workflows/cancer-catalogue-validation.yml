@@ -22,7 +22,7 @@ jobs:
       - name: Run lint
         run: bun run lint
       - name: Run complete frontend test suite
-        run: bun test src/tests
+        run: bun test ./src/tests/*.test.ts
       - name: Type-check and build frontend
         run: bun run build
       - name: Install backend dependencies
