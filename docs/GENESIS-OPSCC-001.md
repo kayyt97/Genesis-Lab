@@ -15,6 +15,23 @@
 
 Do not infer HPV status from the diagnosis, treatment, or cell-line choice. Do not infer pembrolizumab response or resistance from the fact it is being administered.
 
+## Personal motivation and research purpose
+
+This programme has personal significance because it is motivated by a family member's reported experience of OPSCC, pulmonary metastasis, prior chemotherapy and radiotherapy, and current pembrolizumab treatment in a non-curative setting. The purpose is to understand the disease biology rather than to challenge or reinterpret the clinical diagnosis.
+
+The central questions are:
+- What biological processes may contribute to development of the original oropharyngeal tumour?
+- What mechanisms enable invasion and distant metastatic spread?
+- How can malignant cells persist after chemotherapy and radiotherapy?
+- What allows residual cancer cells to survive, and how can tumour heterogeneity and resistance contribute?
+- What does pembrolizumab do at the cellular and immune-signalling level?
+- Which biological and clinical factors are associated with response or non-response to PD-1 blockade?
+- What mechanisms may contribute to disease progression and systemic deterioration?
+
+Genesis should help make these processes understandable through evidence-linked pathway maps and carefully bounded computational models. It should distinguish known biology from assumptions and hypotheses, and it should support questions that can be checked against published research. It is not expected to change an individual diagnosis, determine why a particular patient did not respond, or predict their future course.
+
+The family member's story is the motivation for the research programme, not a source of biological parameters or a patient-specific model calibration dataset.
+
 ## Model-selection note
 
 The existing FaDu model is hypopharyngeal and SCC-25 is oral-tongue derived; neither is a site-matched OPSCC model. UPCI-SCC-090 is added as an **HPV16-positive base-of-tongue comparator reference** (Cellosaurus CVCL_1899; ATCC CRL-3239). Base of tongue is within the oropharynx. It is not a proxy for the reported patient, whose HPV/p16 status remains unknown.
