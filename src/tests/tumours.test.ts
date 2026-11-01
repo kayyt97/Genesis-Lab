@@ -70,6 +70,8 @@ describe('tumour / cancer catalogue', () => {
     expect(upci?.description.standard).toContain('HPV16-positive');
     expect(TUMOUR_RESEARCH_MODEL_ENTRIES).toHaveLength(5);
 
+    expect(GENESIS_OPSCC_001.personalSignificance.centralQuestions.length).toBeGreaterThanOrEqual(6);
+    expect(GENESIS_OPSCC_001.personalSignificance.modellingBoundary).toContain('not used');
     expect(GENESIS_OPSCC_001.disease.primary).toContain('Oropharyngeal');
     expect(GENESIS_OPSCC_001.disease.metastaticSite).toBe('Right lung');
     expect(GENESIS_OPSCC_001.disease.hpvStatus).toBe('unknown');
