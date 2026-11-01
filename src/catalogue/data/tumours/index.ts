@@ -21,13 +21,16 @@ export {
   TUMOUR_CELL_LINE_ENTRIES,
   SIMULATION_READY_TUMOUR_CELL_LINE_IDS,
 } from './tumourCellLines';
+export { TUMOUR_RESEARCH_MODEL_ENTRIES } from './researchModels';
 
 import { TUMOUR_TAXONOMY_ENTRIES } from './tumours';
 import { TUMOUR_CELL_LINE_ENTRIES } from './tumourCellLines';
+import { TUMOUR_RESEARCH_MODEL_ENTRIES } from './researchModels';
 import type { TumourCatalogueEntry } from './tumours';
 
 /** Cell lines first so curated ORG-HELA wins over any duplicate taxonomy id */
 export const ALL_TUMOUR_CATALOGUE_ENTRIES: TumourCatalogueEntry[] = [
   ...TUMOUR_CELL_LINE_ENTRIES,
+  ...TUMOUR_RESEARCH_MODEL_ENTRIES,
   ...TUMOUR_TAXONOMY_ENTRIES,
 ];
