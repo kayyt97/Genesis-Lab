@@ -27,6 +27,11 @@ export interface OpsccArmSummary {
   invasionMean: number;
   immuneRecognitionMean: number;
   lungColonisationMean: number;
+  tumourBurdenSd: number;
+  apoptosisSd: number;
+  invasionSd: number;
+  immuneRecognitionSd: number;
+  lungColonisationSd: number;
 }
 export interface OpsccScenarioResult {
   scenario: OpsccScenario;
@@ -66,6 +71,7 @@ function rng(seed: number) {
   };
 }
 function mean(values: number[]) { return values.reduce((a,b)=>a+b,0)/Math.max(1,values.length); }
+function sampleSd(values: number[]) { if(values.length<2)return 0; const m=mean(values); return Math.sqrt(values.reduce((sum,value)=>sum+(value-m)**2,0)/(values.length-1)); }
 function clamp(v: number, min=0, max=100) { return Math.max(min,Math.min(max,v)); }
 function summarise(rows: OpsccReplicate[]): OpsccArmSummary {
   return {
@@ -74,6 +80,11 @@ function summarise(rows: OpsccReplicate[]): OpsccArmSummary {
     invasionMean: mean(rows.map(x=>x.invasionIndex)),
     immuneRecognitionMean: mean(rows.map(x=>x.immuneRecognitionIndex)),
     lungColonisationMean: mean(rows.map(x=>x.lungColonisationIndex)),
+    tumourBurdenSd: sampleSd(rows.map(x=>x.tumourBurdenIndex)),
+    apoptosisSd: sampleSd(rows.map(x=>x.apoptosisIndex)),
+    invasionSd: sampleSd(rows.map(x=>x.invasionIndex)),
+    immuneRecognitionSd: sampleSd(rows.map(x=>x.immuneRecognitionIndex)),
+    lungColonisationSd: sampleSd(rows.map(x=>x.lungColonisationIndex)),
   };
 }
 function runScenario(scenario: OpsccScenario, baseSeed: number, replicateCount: number): OpsccScenarioResult {
@@ -172,11 +183,11 @@ export function formatOpsccV001Report(report: OpsccStudyReport): string {
     '', 'CANDIDATE DESCRIPTION',report.candidateDescription,
   ];
   for(const result of report.results){
-    lines.push('',`=== ${result.title} ===`,'Mean indices (0–100; dimensionless teaching values):',
+    lines.push('',`=== ${result.title} ===`,'Mean ± sample SD indices (0–100; dimensionless teaching values):',
       'Arm | Tumour burden | Apoptosis | Invasion | Immune recognition | Lung-colonisation proxy');
     for(const arm of ['baseline','sham','v001'] as const){
       const x=result.summaries[arm];
-      lines.push(`${arm} | ${x.tumourBurdenMean.toFixed(2)} | ${x.apoptosisMean.toFixed(2)} | ${x.invasionMean.toFixed(2)} | ${x.immuneRecognitionMean.toFixed(2)} | ${x.lungColonisationMean.toFixed(2)}`);
+      lines.push(`${arm} | ${x.tumourBurdenMean.toFixed(2)} ± ${x.tumourBurdenSd.toFixed(2)} | ${x.apoptosisMean.toFixed(2)} ± ${x.apoptosisSd.toFixed(2)} | ${x.invasionMean.toFixed(2)} ± ${x.invasionSd.toFixed(2)} | ${x.immuneRecognitionMean.toFixed(2)} ± ${x.immuneRecognitionSd.toFixed(2)} | ${x.lungColonisationMean.toFixed(2)} ± ${x.lungColonisationSd.toFixed(2)}`);
     }
     lines.push('V001 minus baseline:',JSON.stringify(result.differences,null,2),'Replicate-level V001 rows:',
       ...result.arms.v001.map(x=>`replicate ${x.replicate}, seed ${x.seed}: burden ${x.tumourBurdenIndex.toFixed(2)}, apoptosis ${x.apoptosisIndex.toFixed(2)}, invasion ${x.invasionIndex.toFixed(2)}, immune ${x.immuneRecognitionIndex.toFixed(2)}, lung proxy ${x.lungColonisationIndex.toFixed(2)}`));
