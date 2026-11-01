@@ -23,6 +23,7 @@ import { TumourResponseMonitoringPanel } from '../components/lab/TumourResponseM
 import { TumourTestFlowPanel } from '../components/lab/TumourTestFlowPanel';
 import { MetastaticInhibitorStudyPanel } from '../components/lab/MetastaticInhibitorStudyPanel';
 import { DualLungCancerStudyPanel } from '../components/lab/DualLungCancerStudyPanel';
+import { OpsccV001StudyPanel } from '../components/lab/OpsccV001StudyPanel';
 import { buildTumourCellMovementReadout } from '../services/tumourCellMovementReadout';
 import {
   buildTumourResponseMonitoring,
@@ -1225,6 +1226,7 @@ export function VirtualLabPage() {
         </Card>
 
         <Card title="Measurements" className="span-2">
+          <OpsccV001StudyPanel />
           <DualLungCancerStudyPanel />
           <MetastaticInhibitorStudyPanel
             study={miStudy}

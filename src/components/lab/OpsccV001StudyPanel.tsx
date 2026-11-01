@@ -1,0 +1,50 @@
+import { useState } from 'react';
+import { Button } from '../ui/Button';
+import { downloadTextFile } from '../../services/exportService';
+import { formatOpsccV001Report, runOpsccV001Study, type OpsccStudyReport } from '../../services/opsccV001Study';
+
+const STORAGE_KEY='genesis-lab-opscc-v001-report-v1';
+export function OpsccV001StudyPanel(){
+  const [report,setReport]=useState<OpsccStudyReport|null>(()=>{try{const raw=localStorage.getItem(STORAGE_KEY);return raw?JSON.parse(raw) as OpsccStudyReport:null;}catch{return null;}});
+  const [busy,setBusy]=useState(false);
+  const [feedback,setFeedback]=useState<string|null>(null);
+  const run=()=>{
+    setBusy(true);setFeedback(null);
+    try{
+      const next=runOpsccV001Study({replicateCount:100});
+      setReport(next);
+      try{localStorage.setItem(STORAGE_KEY,JSON.stringify(next));}catch{setFeedback('Run completed; browser storage unavailable. Export your report to keep it.');}
+      setFeedback(`OPSCC V001 study completed: 2 HPV comparison scenarios, 3 arms and 100 matched replicates per arm in each scenario.`);
+    }catch(error){setFeedback(error instanceof Error?error.message:'OPSCC study could not be completed.');}
+    finally{setBusy(false);}
+  };
+  return <section className="mi-candidate-panel" aria-label="OPSCC V001 educational study">
+    <header className="mi-candidate-header">
+      <p className="mi-edu-banner">Educational computational simulation only — not biological evidence or clinical efficacy</p>
+      <h3>OPSCC — GENESIS-OPSCC-V001</h3>
+      <p className="text-muted">HPV16-positive UPCI-SCC-090 comparator, with a separate HPV-independent hypothesis scenario. Compares untreated baseline, matched no-effect sham and abstract V001 candidate.</p>
+      <p className="text-muted"><strong>Personal purpose:</strong> This run is motivated by a wish to understand the biology behind a real family experience. That experience motivates the questions; it is not used to calibrate or predict an individual outcome.</p>
+    </header>
+    <div className="mi-actions">
+      <Button onClick={run} disabled={busy}>{busy?'Running OPSCC study…':'Run OPSCC V001 study (100 replicates)'}</Button>
+      <Button variant="secondary" onClick={()=>report&&downloadTextFile('GenesisLab_OPSCC_V001_Report.txt',formatOpsccV001Report(report),'text/plain')} disabled={!report}>Export full report (TXT)</Button>
+      <Button variant="secondary" onClick={()=>report&&downloadTextFile('GenesisLab_OPSCC_V001_Data.json',JSON.stringify(report,null,2),'application/json')} disabled={!report}>Export results (JSON)</Button>
+    </div>
+    {feedback&&<p className="mi-feedback" role="status">{feedback}</p>}
+    {!report&&<p className="text-muted">Run the study to generate 600 simulated arm-runs and a report. Each replicate uses matched starting conditions and a recorded seed.</p>}
+    {report&&<div>
+      <p><strong>Report:</strong> {report.reportId} · <strong>Comparator:</strong> {report.modelName} · <strong>Replicates:</strong> {report.replicateCount} per arm/scenario</p>
+      {report.results.map(result=><details key={result.scenario} open>
+        <summary><strong>{result.title}</strong></summary>
+        <table className="tumour-report-table"><thead><tr><th>Simulated index (0–100)</th><th>Baseline</th><th>Sham</th><th>V001</th></tr></thead><tbody>
+          {([
+            ['Tumour burden', 'tumourBurdenMean'],['Apoptosis','apoptosisMean'],['Invasion','invasionMean'],['Immune recognition','immuneRecognitionMean'],['Lung-colonisation proxy','lungColonisationMean']
+          ] as const).map(([label,key])=><tr key={key}><th>{label}</th><td>{result.summaries.baseline[key].toFixed(2)} ± {result.summaries.baseline[({tumourBurdenMean:'tumourBurdenSd',apoptosisMean:'apoptosisSd',invasionMean:'invasionSd',immuneRecognitionMean:'immuneRecognitionSd',lungColonisationMean:'lungColonisationSd'} as const)[key]].toFixed(2)}</td><td>{result.summaries.sham[key].toFixed(2)} ± {result.summaries.sham[({tumourBurdenMean:'tumourBurdenSd',apoptosisMean:'apoptosisSd',invasionMean:'invasionSd',immuneRecognitionMean:'immuneRecognitionSd',lungColonisationMean:'lungColonisationSd'} as const)[key]].toFixed(2)}</td><td>{result.summaries.v001[key].toFixed(2)} ± {result.summaries.v001[({tumourBurdenMean:'tumourBurdenSd',apoptosisMean:'apoptosisSd',invasionMean:'invasionSd',immuneRecognitionMean:'immuneRecognitionSd',lungColonisationMean:'lungColonisationSd'} as const)[key]].toFixed(2)}</td></tr>)}
+        </tbody></table>
+        <p><strong>V001 minus baseline:</strong> burden {result.differences.tumourBurdenV001VsBaseline.toFixed(2)}; apoptosis +{result.differences.apoptosisV001VsBaseline.toFixed(2)}; invasion {result.differences.invasionV001VsBaseline.toFixed(2)}; immune recognition +{result.differences.immuneRecognitionV001VsBaseline.toFixed(2)}; lung proxy {result.differences.lungColonisationV001VsBaseline.toFixed(2)}.</p>
+        <p className="text-muted">These dimensionless values are generated by assumed equations, not observed biology.</p>
+      </details>)}
+      <h4>Interpretation boundaries</h4><ul>{report.evidenceBoundary.map(x=><li key={x}>{x}</li>)}</ul>
+    </div>}
+  </section>;
+}
