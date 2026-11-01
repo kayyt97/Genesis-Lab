@@ -18,6 +18,8 @@ export {
   TUMOUR_BEHAVIOURS,
   TUMOUR_CELL_LINE_ENTRIES,
   TUMOUR_RESEARCH_MODEL_ENTRIES,
+  GENESIS_OPSCC_001,
+  GENESIS_OPSCC_RESEARCH_PHASES,
   SIMULATION_READY_TUMOUR_CELL_LINE_IDS,
   ALL_TUMOUR_CATALOGUE_ENTRIES,
   isTumourEntry,
@@ -33,4 +35,6 @@ export type {
   TumourTissueForm,
   TumourAgeGroup,
   TumourEntryKind,
+  CancerResearchProgramme,
+  ResearchEvidenceClass,
 } from './data/tumours/index';
