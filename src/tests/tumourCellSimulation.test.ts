@@ -70,6 +70,10 @@ describe('tumour-cell therapeutic simulation', () => {
     expect(isTumourCellModel('ORG-HELA')).toBe(true);
     expect(isTumourCellModel('ORG-CL-MCF7')).toBe(true);
     expect(isTumourCellModel('ORG-CL-A549')).toBe(true);
+    expect(isTumourCellModel('ORG-CL-FADU')).toBe(false);
+    expect(isTumourCellModel('ORG-CL-SCC25')).toBe(false);
+    expect(isTumourCellModel('ORG-CL-A375')).toBe(false);
+    expect(isTumourCellModel('ORG-CL-PANC1')).toBe(false);
     expect(isTumourCellModel('ORG-ECOLI')).toBe(false);
     const taxonomy = organismIndex.query({
       category: 'tumours-cancer',
