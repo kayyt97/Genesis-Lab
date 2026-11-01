@@ -25,6 +25,7 @@ import { MetastaticInhibitorStudyPanel } from '../components/lab/MetastaticInhib
 import { DualLungCancerStudyPanel } from '../components/lab/DualLungCancerStudyPanel';
 import { OpsccV001StudyPanel } from '../components/lab/OpsccV001StudyPanel';
 import { OpsccMechanismStudyPanel } from '../components/lab/OpsccMechanismStudyPanel';
+import { OpsccConnectedPathwayPanel } from '../components/lab/OpsccConnectedPathwayPanel';
 import { buildTumourCellMovementReadout } from '../services/tumourCellMovementReadout';
 import {
   buildTumourResponseMonitoring,
@@ -1229,6 +1230,7 @@ export function VirtualLabPage() {
         <Card title="Measurements" className="span-2">
           <OpsccV001StudyPanel />
           <OpsccMechanismStudyPanel />
+          <OpsccConnectedPathwayPanel />
           <DualLungCancerStudyPanel />
           <MetastaticInhibitorStudyPanel
             study={miStudy}
